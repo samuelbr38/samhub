@@ -93,13 +93,9 @@ return function(App)
         C.sombra(moldura, UDim2.new(1, 0, 1, 0), UDim2.new(0.5, 0, 0.5, 4), nil, 16)
 
         local janela = C.criar("Frame", {
-            Parent = moldura, BackgroundColor3 = Color3.new(1, 1, 1), ClipsDescendants = true,
+            Parent = moldura, BackgroundColor3 = Tema.fundo, ClipsDescendants = true,
             Size = UDim2.new(1, 0, 1, 0), ZIndex = 1,
-        }, {
-            C.canto(16),
-            C.borda(Tema.borda),
-            C.criar("UIGradient", { Color = ColorSequence.new(Tema.fundo, Tema.fundoFim), Rotation = 125 }),
-        })
+        }, { C.canto(16), C.borda(Tema.borda) })
 
         local escala = C.criar("UIScale", { Parent = moldura })
         local escalaBase = 1
@@ -118,19 +114,6 @@ return function(App)
             escala.Scale = escalaBase * 0.9
             C.tween(escala, { Scale = escalaBase }, 0.25)
         end
-
-        local faixaTopo = C.criar("Frame", {
-            Parent = janela, BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
-            Size = UDim2.new(1, 0, 0, 3), ZIndex = 5,
-        })
-        C.girar(C.criar("UIGradient", {
-            Parent = faixaTopo, Rotation = 0,
-            Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, Tema.rosa),
-                ColorSequenceKeypoint.new(0.5, Tema.lilas),
-                ColorSequenceKeypoint.new(1, Tema.rosa),
-            }),
-        }), 8)
 
         local lateral = C.criar("Frame", {
             Parent = janela, BackgroundColor3 = Tema.lateral, Size = UDim2.new(0, LAT, 1, 0),
@@ -152,14 +135,13 @@ return function(App)
             Parent = marca, BackgroundColor3 = Color3.new(1, 1, 1),
             Position = UDim2.new(0, 14, 0, 14), Size = UDim2.new(0, 36, 0, 36),
         }, { C.canto(12), gradienteLogo })
-        C.girar(gradienteLogo, 6)
         local logo = C.criar("TextButton", {
             Parent = fundoLogo, Text = "S", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
             Font = Tema.fonteFofa, TextSize = 21, TextColor3 = Color3.new(1, 1, 1),
         })
         C.texto({
-            Parent = marca, Text = "SAMHUB", Position = UDim2.new(0, 60, 0, 13), Size = UDim2.new(1, -64, 0, 22),
-            Font = Tema.fonteFofa, TextSize = 19,
+            Parent = marca, Text = "SAMHUB", Position = UDim2.new(0, 60, 0, 15), Size = UDim2.new(1, -64, 0, 18),
+            Font = Tema.fonteForte, TextSize = 15,
         })
         C.texto({
             Parent = marca, Text = "v" .. Config.VERSAO .. " · Adopt Me 💕", Position = UDim2.new(0, 60, 0, 34),
@@ -204,8 +186,8 @@ return function(App)
             Position = UDim2.new(0, 0, 1, -1), Size = UDim2.new(1, 0, 0, 1),
         })
         local tituloPagina = C.texto({
-            Parent = topo, Position = UDim2.new(0, 20, 0, 9), Size = UDim2.new(1, -120, 0, 22),
-            Font = Tema.fonteFofa, TextSize = 20,
+            Parent = topo, Position = UDim2.new(0, 20, 0, 11), Size = UDim2.new(1, -120, 0, 20),
+            Font = Tema.fonteForte, TextSize = 17,
         })
         local subtituloPagina = C.texto({
             Parent = topo, Position = UDim2.new(0, 20, 0, 32), Size = UDim2.new(1, -120, 0, 14),
@@ -242,7 +224,7 @@ return function(App)
             for j, pg in ipairs(paginas) do pg.Visible = (j == i) end
             for j, item in ipairs(itensNav) do
                 local ativo = (j == i)
-                C.tween(item.botao, { BackgroundTransparency = ativo and 0.6 or 1, TextColor3 = ativo and Tema.texto or Tema.suave })
+                C.tween(item.botao, { BackgroundTransparency = ativo and 0.86 or 1, TextColor3 = ativo and Tema.texto or Tema.suave })
                 item.barra.Visible = ativo
             end
             tituloPagina.Text = ABAS[i].nome
@@ -253,16 +235,16 @@ return function(App)
         for i, aba in ipairs(ABAS) do
             local botao = C.criar("TextButton", {
                 Parent = nav, LayoutOrder = i, Text = aba.icone .. "   " .. aba.nome, AutoButtonColor = false,
-                BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 38),
+                BackgroundColor3 = Tema.rosa, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 38),
                 Font = Tema.fonteMedia, TextSize = 12, TextColor3 = Tema.suave,
                 TextXAlignment = Enum.TextXAlignment.Left,
-            }, { C.canto(11), C.padding(0, 10, 0, 16), C.gradiente(0) })
+            }, { C.canto(9), C.padding(0, 10, 0, 16) })
             local barra = C.criar("Frame", {
                 Parent = botao, BackgroundColor3 = Tema.rosa, AnchorPoint = Vector2.new(0, 0.5),
                 Position = UDim2.new(0, -10, 0.5, 0), Size = UDim2.new(0, 3, 0, 18), Visible = false,
             }, { C.canto(2) })
             botao.MouseEnter:Connect(function()
-                if abaAtual ~= i then C.tween(botao, { BackgroundTransparency = 0.88 }) end
+                if abaAtual ~= i then C.tween(botao, { BackgroundTransparency = 0.94 }) end
             end)
             botao.MouseLeave:Connect(function()
                 if abaAtual ~= i then C.tween(botao, { BackgroundTransparency = 1 }) end
@@ -278,9 +260,9 @@ return function(App)
         C.cabecalho(cardComprador, 1, "👤", "Comprador")
 
         local cardStatus = C.criar("Frame", {
-            Parent = cardComprador, LayoutOrder = 2, BackgroundColor3 = Tema.rosaFundo,
+            Parent = cardComprador, LayoutOrder = 2, BackgroundColor3 = Tema.painel2,
             Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
-        }, { C.canto(11), C.padding(9, 10, 9, 18), C.borda(Tema.rosaEscuro) })
+        }, { C.canto(9), C.padding(9, 10, 9, 18) })
         local barraStatus = C.criar("Frame", {
             Parent = cardStatus, BackgroundColor3 = Tema.rosa, Position = UDim2.new(0, -10, 0, 0),
             Size = UDim2.new(0, 3, 1, 0),
@@ -469,7 +451,7 @@ return function(App)
             }, { C.canto(2) })
             numeros[info[1]] = C.texto({
                 Parent = card, Text = "0", Position = UDim2.new(0, 14, 0, 7), Size = UDim2.new(1, -20, 0, 24),
-                Font = Tema.fonteFofa, TextSize = 22, TextColor3 = CORES_RESULTADO[info[1]],
+                Font = Tema.fonteForte, TextSize = 20, TextColor3 = CORES_RESULTADO[info[1]],
             })
             C.texto({
                 Parent = card, Text = info[2], Position = UDim2.new(0, 14, 0, 31), Size = UDim2.new(1, -20, 0, 14),
@@ -558,7 +540,7 @@ return function(App)
         end
         toggle(2, "ACEITAR_PEDIDO", "Aceitar pedido", "Accept no aviso dele")
         toggle(3, "LISTAR_AO_ATIVAR", "Pôr à venda ao ativar", "Usa a caixa de correio")
-        toggle(4, "ANDAR_ATE_CAIXA", "Andar até a caixa", "Vai sozinho até ela")
+        toggle(4, "ANDAR_ATE_CAIXA", "Andar até a caixa", "Só até o lugar aprendido")
         toggle(5, "CONFERIR_VENDA", "Conferir após listar", "Acha a casa com Unlist")
         toggle(6, "RECUSAR_OUTROS", "Recusar outras pessoas", "Desligado: só ignora")
         toggle(7, "VERIFICAR_CASA", "Conferir casa no trade", "Só se a casa aparecer")
@@ -671,8 +653,10 @@ return function(App)
                     dCaixa("menu aberto", true)
                 elseif c.botaoE then
                     dCaixa("botão E na tela", true)
+                elseif c.salva then
+                    dCaixa(string.format("aprendida · %.0f studs", c.distanciaSalva or 0), true)
                 elseif c.placa then
-                    dCaixa(string.format("casa a %.0f studs%s", c.distanciaPlaca or 0, se(c.salva, " · salva", "")), nil)
+                    dCaixa("toque nela 1 vez", nil)
                 else
                     dCaixa("não achei sua casa", false)
                 end
@@ -738,7 +722,6 @@ return function(App)
             gradienteBolha,
             C.criar("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 2, Transparency = 0.35 }),
         })
-        C.girar(gradienteBolha, 5)
         C.texto({
             Parent = bolha, Text = "S", Size = UDim2.new(1, 0, 1, 0), Font = Tema.fonteFofa, TextSize = 28,
             TextColor3 = Color3.new(1, 1, 1), TextXAlignment = Enum.TextXAlignment.Center,
@@ -750,25 +733,6 @@ return function(App)
             C.criar("UICorner", { CornerRadius = UDim.new(1, 0) }),
             C.criar("UIStroke", { Color = Tema.fundo, Thickness = 2 }),
         })
-
-        local anel = C.criar("Frame", {
-            Parent = bolha, BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(1, 0, 1, 0),
-        }, { C.criar("UICorner", { CornerRadius = UDim.new(1, 0) }) })
-        local bordaAnel = C.criar("UIStroke", { Parent = anel, Color = Tema.rosaClaro, Thickness = 2, Transparency = 1 })
-        task.spawn(function()
-            while gui.Parent do
-                if bolha.Visible and Trade.estado() == "ativo" then
-                    anel.Size = UDim2.new(1, 0, 1, 0)
-                    bordaAnel.Transparency = 0.1
-                    C.tween(anel, { Size = UDim2.new(1.7, 0, 1.7, 0) }, 1.2)
-                    C.tween(bordaAnel, { Transparency = 1 }, 1.2)
-                    task.wait(1.4)
-                else
-                    task.wait(0.5)
-                end
-            end
-        end)
 
         local CORES_PONTINHO = { ativo = Tema.verde, pausado = Tema.amarelo, inativo = Tema.apagado }
         local function pintarPontinho()

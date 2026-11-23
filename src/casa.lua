@@ -131,10 +131,29 @@ return function(App)
         return lista
     end
 
+    local function portasDa(placa)
+        local lista = {}
+        if not placa or not placa.terreno then return lista end
+        for _, d in ipairs(placa.terreno:GetDescendants()) do
+            if (d:IsA("BasePart") or d:IsA("Model")) and Utils.temAlguma(string.lower(d.Name), PALAVRAS_PORTA) then
+                local p = posicaoDe(d)
+                if p then table.insert(lista, p) end
+            end
+        end
+        return lista
+    end
+
     local function posicaoSalva(placa)
         local o = S.OFFSET_CAIXA
         if not (placa and type(o) == "table" and #o == 3) then return nil end
         return placa.referencia:PointToWorldSpace(Vector3.new(o[1], o[2], o[3]))
+    end
+
+    local function guardarPosicao(placa, raiz, avisar)
+        local o = placa.referencia:PointToObjectSpace(raiz.Position)
+        S.OFFSET_CAIXA = { o.X, o.Y, o.Z }
+        if App.salvarAjustes then App.salvarAjustes() end
+        if avisar then Utils.setStatus("Aprendi onde fica a sua caixa de correio! 📮", "ok") end
     end
 
     function Casa.salvarPosicaoCaixa()
@@ -144,11 +163,59 @@ return function(App)
             Utils.setStatus("Não achei a placa da sua casa para salvar a posição", "erro")
             return false
         end
-        local o = placa.referencia:PointToObjectSpace(raiz.Position)
-        S.OFFSET_CAIXA = { o.X, o.Y, o.Z }
-        if App.salvarAjustes then App.salvarAjustes() end
-        Utils.setStatus("Posição da caixa salva! Da próxima vez eu venho direto aqui.", "ok")
+        guardarPosicao(placa, raiz, true)
         return true
+    end
+
+    local function botao(textos)
+        return Utils.acharBotao(PlayerGui, textos)
+    end
+
+    local TEXTOS_MENU_CAIXA = {}
+    for _, t in ipairs(S.TEXTO_LISTAR_CASA) do table.insert(TEXTOS_MENU_CAIXA, t) end
+    for _, t in ipairs(S.TEXTO_DESLISTAR) do table.insert(TEXTOS_MENU_CAIXA, t) end
+
+    local function menuDaCaixa()
+        return botao(TEXTOS_MENU_CAIXA)
+    end
+
+    local function menuAberto()
+        return menuDaCaixa() or botao(S.TEXTO_TROCAR_CASA)
+    end
+
+    local placaGuardada, placaHora = nil, 0
+    local function placaRapida()
+        if os.clock() - placaHora > 20 or not (placaGuardada and placaGuardada.peca.Parent) then
+            placaGuardada, placaHora = Casa.acharPlaca(), os.clock()
+        end
+        return placaGuardada
+    end
+
+    local function aprenderSeAberto()
+        if not menuDaCaixa() then return end
+        local _, raiz = personagem()
+        local placa = placaRapida()
+        if not raiz or not placa then return end
+        local atual = posicaoSalva(placa)
+        if not atual or distanciaXZ(atual, raiz.Position) > 3 then
+            guardarPosicao(placa, raiz, atual == nil)
+        end
+    end
+
+    local vigiando = false
+    function Casa.iniciarVigia()
+        if vigiando then return end
+        vigiando = true
+        task.spawn(function()
+            while vigiando do
+                task.wait(1.5)
+                pcall(aprenderSeAberto)
+            end
+        end)
+    end
+
+    function Casa.pararVigia()
+        vigiando = false
     end
 
     local candidatosE = {}
@@ -166,7 +233,7 @@ return function(App)
         end
     end
 
-    local function eDaCaixa(label, conhecidas)
+    local function eDaCaixa(label, salva)
         if not label.Parent then
             candidatosE[label] = nil
             return nil
@@ -179,29 +246,23 @@ return function(App)
         if tela:IsA("BillboardGui") then
             local alvo = tela.Adornee or tela.Parent
             local pos = posicaoDe(alvo)
-            if not pos or (pos - raiz.Position).Magnitude > 25 then return nil end
+            if not pos or (pos - raiz.Position).Magnitude > 20 then return nil end
             local caminho = nomesAcima(alvo, 5)
             if Utils.temAlguma(caminho, PALAVRAS_PORTA) then return nil end
             if string.find(caminho, "mail", 1, true) then return pos end
-            if #conhecidas == 0 then return pos end
-            for _, p in ipairs(conhecidas) do
-                if (p - pos).Magnitude < 8 then return pos end
-            end
+            if salva and distanciaXZ(pos, salva) < 7 then return pos end
             return nil
         end
 
-        if Utils.naTela(label) then
-            if #conhecidas == 0 then return raiz.Position end
-            for _, p in ipairs(conhecidas) do
-                if distanciaXZ(p, raiz.Position) < 14 then return p end
-            end
+        if Utils.naTela(label) and salva and distanciaXZ(raiz.Position, salva) <= 5 then
+            return salva
         end
         return nil
     end
 
-    local function acharE(conhecidas)
+    local function acharE(salva)
         for label in pairs(candidatosE) do
-            local ok, pos = pcall(eDaCaixa, label, conhecidas)
+            local ok, pos = pcall(eDaCaixa, label, salva)
             if ok and pos then return label, pos end
         end
         return nil
@@ -209,152 +270,74 @@ return function(App)
 
     function Casa.botaoEVisivel()
         coletarE(false)
-        local placa = Casa.acharPlaca()
-        local conhecidas = Casa.caixasPerto(placa)
-        local salva = posicaoSalva(placa)
-        if salva then table.insert(conhecidas, salva) end
-        return acharE(conhecidas) ~= nil
+        return acharE(posicaoSalva(placaRapida())) ~= nil
     end
 
-    function Casa.andarAte(destino, perto, parar)
+    function Casa.andarAte(destino, portas)
         local humanoide, raiz = personagem()
-        if not humanoide or not raiz then return false end
-        perto = perto or S.DISTANCIA_PERTO
-        if distanciaXZ(raiz.Position, destino) <= perto then return true end
-
+        if not humanoide or not raiz then return false, "sem personagem" end
         local alvo = Vector3.new(destino.X, raiz.Position.Y, destino.Z)
-        local pontos
-        local caminho = PathfindingService:CreatePath({ AgentRadius = 2, AgentHeight = 5, AgentCanJump = true })
-        local ok = pcall(function() caminho:ComputeAsync(raiz.Position, alvo) end)
-        if ok and caminho.Status == Enum.PathStatus.Success then
-            pontos = caminho:GetWaypoints()
-        else
-            pontos = { { Position = alvo, Action = Enum.PathWaypointAction.Walk } }
-        end
-
-        local function deveParar()
-            if parar and parar() then
-                humanoide:MoveTo(raiz.Position)
-                return true
-            end
-            return false
-        end
-
-        for _, ponto in ipairs(pontos) do
-            if ponto.Action == Enum.PathWaypointAction.Jump then humanoide.Jump = true end
-            humanoide:MoveTo(ponto.Position)
-            local t = 0
-            while t < 4 do
-                task.wait(0.15)
-                t += 0.15
-                if deveParar() then return true end
-                if distanciaXZ(raiz.Position, destino) <= perto then return true end
-                if distanciaXZ(raiz.Position, ponto.Position) < 2.5 then break end
-            end
-            if t >= 4 then humanoide.Jump = true end
-        end
-
+        local inicio, ultimaPos, parado, ultimoComando = os.clock(), raiz.Position, 0, os.clock()
         humanoide:MoveTo(alvo)
-        local t = 0
-        while distanciaXZ(raiz.Position, destino) > perto and t < 5 do
+
+        while distanciaXZ(raiz.Position, destino) > 2.5 do
             task.wait(0.15)
-            t += 0.15
-            if deveParar() then return true end
+            if (raiz.Position - ultimaPos).Magnitude > 40 then return false, "teleporte" end
+            for _, p in ipairs(portas or {}) do
+                if distanciaXZ(raiz.Position, p) < 5 and distanciaXZ(destino, p) >= 5 then
+                    humanoide:MoveTo(raiz.Position)
+                    return false, "porta"
+                end
+            end
+            if (raiz.Position - ultimaPos).Magnitude < 0.2 then parado += 0.15 else parado = 0 end
+            ultimaPos = raiz.Position
+            if parado > 1 or os.clock() - ultimoComando > 5 then
+                if parado > 1 then humanoide.Jump = true end
+                humanoide:MoveTo(alvo)
+                parado, ultimoComando = 0, os.clock()
+            end
+            if os.clock() - inicio > S.TEMPO_MAX_ANDANDO then
+                humanoide:MoveTo(raiz.Position)
+                return false, "tempo"
+            end
         end
-        return distanciaXZ(raiz.Position, destino) <= perto + 2
+        humanoide:MoveTo(raiz.Position)
+        return true
     end
 
-    local function pontosEmVolta(centro, raio, origem)
-        local pontos = {}
-        for i = 0, 11 do
-            local angulo = math.rad(i * 30)
-            table.insert(pontos, centro + Vector3.new(math.cos(angulo) * raio, 0, math.sin(angulo) * raio))
-        end
-        local inicio, menor = 1, math.huge
-        for i, p in ipairs(pontos) do
-            local d = distanciaXZ(p, origem)
-            if d < menor then inicio, menor = i, d end
-        end
-        local ordenados = {}
-        for k = 0, #pontos - 1 do
-            table.insert(ordenados, pontos[(inicio - 1 + k) % #pontos + 1])
-        end
-        return ordenados
-    end
+    local MENSAGENS_ANDAR = {
+        porta = "Parei: ia passar perto da porta. Vá até a caixa de correio por fora.",
+        teleporte = "Fui teleportado (entrei em algum lugar?). Volte para a frente da casa.",
+        tempo = "Não consegui chegar na caixa de correio a tempo.",
+    }
 
     function Casa.irAteCaixa()
-        local humanoide, raiz = personagem()
-        if not raiz then return nil end
-
+        local _, raiz = personagem()
+        if not raiz then return nil, "Personagem não carregou" end
         local placa = Casa.acharPlaca()
-        local conhecidas = Casa.caixasPerto(placa)
+        placaGuardada, placaHora = placa, os.clock()
         local salva = posicaoSalva(placa)
-        if salva then table.insert(conhecidas, 1, salva) end
 
-        Utils.setStatus("Procurando o botão E da caixa de correio...", "espera")
         candidatosE = {}
         coletarE(true)
-        local conexoes = {
-            PlayerGui.DescendantAdded:Connect(registrarE),
-            workspace.DescendantAdded:Connect(registrarE),
-        }
-        local function terminar(...)
-            for _, c in ipairs(conexoes) do c:Disconnect() end
-            return ...
+        local e, pos = acharE(salva)
+        if e then return e, pos end
+
+        if not salva then
+            return nil, "Ainda não sei onde fica sua caixa de correio. Vá até ela e toque nela UMA vez: eu aprendo e continuo sozinho."
+        end
+        local distancia = distanciaXZ(raiz.Position, salva)
+        if distancia <= 4 then return nil, nil end
+        if not S.ANDAR_ATE_CAIXA then return nil, "Vá até a sua caixa de correio" end
+        if distancia > S.DISTANCIA_MAX_ANDAR then
+            return nil, string.format("Você está longe da sua casa (%.0f studs). Chegue mais perto.", distancia)
         end
 
-        local achado, posCaixa = acharE(conhecidas)
-        if achado then return terminar(achado, posCaixa) end
-        if not S.ANDAR_ATE_CAIXA then return terminar(nil) end
-
-        local destinos = {}
-        for _, p in ipairs(conhecidas) do table.insert(destinos, p) end
-        if placa then table.insert(destinos, placa.posicao) end
-        local centro, raio = centroDaCasa(placa)
-        if centro then
-            for _, p in ipairs(pontosEmVolta(centro, raio, raiz.Position)) do table.insert(destinos, p) end
-        end
-        if #destinos == 0 then
-            Utils.setStatus("Não achei sua casa (a placa com o seu nome)", "aviso")
-            return terminar(nil)
-        end
-
-        local inicio, ultimaPos, ultimaBusca = os.clock(), raiz.Position, 0
-        local entrou = false
-        local function parar()
-            if (raiz.Position - ultimaPos).Magnitude > 40 then
-                entrou = true
-                return true
-            end
-            ultimaPos = raiz.Position
-            if os.clock() - ultimaBusca > 1.5 then
-                ultimaBusca = os.clock()
-                coletarE(false)
-            end
-            achado, posCaixa = acharE(conhecidas)
-            return achado ~= nil or os.clock() - inicio > S.TEMPO_MAX_ANDANDO
-        end
-
-        for i, destino in ipairs(destinos) do
-            Utils.setStatus(string.format("Andando até aparecer o E da caixa de correio (%d/%d)...", i, #destinos), "espera")
-            Casa.andarAte(destino, 3, parar)
-            if achado or entrou or os.clock() - inicio > S.TEMPO_MAX_ANDANDO then break end
-        end
-        if humanoide then humanoide:MoveTo(raiz.Position) end
-
-        if entrou then
-            Utils.setStatus("Parece que entrei em algum lugar. Saia, fique do lado da caixa e use 📍 Estou na caixa.", "aviso")
-            return terminar(nil)
-        end
-        return terminar(achado, posCaixa)
-    end
-
-    local function botao(textos)
-        return Utils.acharBotao(PlayerGui, textos)
-    end
-
-    local function menuAberto()
-        return botao(S.TEXTO_LISTAR_CASA) or botao(S.TEXTO_DESLISTAR) or botao(S.TEXTO_TROCAR_CASA)
+        Utils.setStatus(string.format("Indo até a caixa de correio (%.0f studs)...", distancia), "espera")
+        local ok, motivo = Casa.andarAte(salva, portasDa(placa))
+        if not ok then return nil, MENSAGENS_ANDAR[motivo] or "Não consegui chegar na caixa de correio." end
+        coletarE(false)
+        return acharE(salva)
     end
 
     local function tocarNoMundo(posicao)
@@ -366,26 +349,41 @@ return function(App)
     end
 
     function Casa.abrirMenu()
-        if menuAberto() then return true end
-        local botaoE, posCaixa = Casa.irAteCaixa()
-
-        if botaoE then
-            Utils.setStatus("Achei o E da caixa de correio! Apertando...", "espera")
-            Utils.apertarTecla(S.TECLA_INTERAGIR)
-            if esperar(menuAberto, 2) then return true end
-
-            local tela = botaoE:FindFirstAncestorWhichIsA("LayerCollector")
-            if tela and tela:IsA("ScreenGui") then
-                local alvo = botaoE:FindFirstAncestorWhichIsA("GuiButton") or botaoE
-                Utils.clicar(alvo)
-            else
-                tocarNoMundo(posCaixa)
-            end
-            if esperar(menuAberto, 2) then return true end
+        if menuAberto() then
+            aprenderSeAberto()
+            return true
         end
 
-        Utils.setStatus("Toque na caixa de correio (ou aperte E): eu continuo sozinho", "aviso")
-        return esperar(menuAberto, S.ESPERA_CAIXA_CORREIO) ~= nil
+        local e, info = Casa.irAteCaixa()
+        local _, raiz = personagem()
+        local salva = posicaoSalva(placaRapida())
+        local noLugar = salva and raiz and distanciaXZ(raiz.Position, salva) <= 4
+
+        if e or noLugar then
+            Utils.setStatus("Apertando E na caixa de correio...", "espera")
+            Utils.apertarTecla(S.TECLA_INTERAGIR)
+            if esperar(menuAberto, 2) then
+                aprenderSeAberto()
+                return true
+            end
+            if e then
+                local tela = e:FindFirstAncestorWhichIsA("LayerCollector")
+                if tela and tela:IsA("ScreenGui") then
+                    Utils.clicar(e:FindFirstAncestorWhichIsA("GuiButton") or e)
+                elseif typeof(info) == "Vector3" then
+                    tocarNoMundo(info)
+                end
+                if esperar(menuAberto, 2) then
+                    aprenderSeAberto()
+                    return true
+                end
+            end
+        end
+
+        Utils.setStatus((type(info) == "string" and info) or "Toque na sua caixa de correio: eu continuo sozinho", "aviso")
+        local abriu = esperar(menuAberto, S.ESPERA_CAIXA_CORREIO) ~= nil
+        if abriu then aprenderSeAberto() end
+        return abriu
     end
 
     local function apertarItem(item)
@@ -518,12 +516,13 @@ return function(App)
 
     function Casa.diagnostico()
         local _, raiz = personagem()
-        local placa = Casa.acharPlaca()
+        local placa = placaRapida()
         local salva = posicaoSalva(placa)
         return {
             placa = placa ~= nil,
             distanciaPlaca = (placa and raiz) and distanciaXZ(raiz.Position, placa.posicao) or nil,
             salva = salva ~= nil,
+            distanciaSalva = (salva and raiz) and distanciaXZ(raiz.Position, salva) or nil,
             botaoE = Casa.botaoEVisivel(),
             menuAberto = menuAberto() ~= nil,
         }

@@ -6,10 +6,10 @@ local Tema = {
     hover    = Color3.fromRGB(48, 34, 55),
     borda    = Color3.fromRGB(60, 42, 66),
 
-    rosa       = Color3.fromRGB(255, 77, 166),
-    rosaClaro  = Color3.fromRGB(255, 145, 203),
-    rosaEscuro = Color3.fromRGB(196, 40, 120),
-    lilas      = Color3.fromRGB(181, 98, 255),
+    rosa       = Color3.fromRGB(236, 98, 162),
+    rosaClaro  = Color3.fromRGB(244, 170, 206),
+    rosaEscuro = Color3.fromRGB(176, 66, 124),
+    lilas      = Color3.fromRGB(176, 130, 236),
 
     verde    = Color3.fromRGB(72, 214, 142),
     amarelo  = Color3.fromRGB(255, 198, 80),

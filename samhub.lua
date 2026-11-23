@@ -88,6 +88,7 @@ end
 
 function App.fechar()
     App.Trade.parar()
+    App.Casa.pararVigia()
     maid:Clean()
     if env.SAMHUB == App then env.SAMHUB = nil end
 end
@@ -96,6 +97,7 @@ carregarAjustes()
 App.UI.criar(maid)
 App.Historico.carregar()
 App.Trade.iniciar()
+App.Casa.iniciarVigia()
 env.SAMHUB = App
 
 local tempo = string.format("%.1fs", os.clock() - inicio)

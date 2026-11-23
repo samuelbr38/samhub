@@ -147,63 +147,36 @@ return function(App)
     function C.botao(p)
         local variante = p.Variante or "secundario"
         local cor = CORES_VARIANTE[variante]
-        local comGradiente = variante == "primario"
         local botao = C.criar("TextButton", {
             Parent = p.Parent, Text = p.Texto, Size = p.Size, Position = p.Position or UDim2.new(),
-            LayoutOrder = p.LayoutOrder or 0, AutoButtonColor = false,
-            BackgroundColor3 = comGradiente and Color3.new(1, 1, 1) or cor,
+            LayoutOrder = p.LayoutOrder or 0, BackgroundColor3 = cor, AutoButtonColor = false,
             Font = Tema.fonteForte, TextSize = p.TextSize or 12, TextColor3 = Tema.texto,
-        }, { C.canto(9) })
+        }, { C.canto(8) })
 
-        local gradiente = C.gradiente(0)
-        gradiente.Name = "Gradiente"
-        gradiente.Enabled = comGradiente
-        gradiente.Parent = botao
         if variante == "secundario" then C.borda().Parent = botao end
-        botao:SetAttribute("CorBase", comGradiente and Color3.new(1, 1, 1) or cor)
+        botao:SetAttribute("CorBase", cor)
 
-        local escala = C.criar("UIScale", { Parent = botao })
         local function base() return botao:GetAttribute("CorBase") end
-        botao.MouseEnter:Connect(function()
-            C.tween(escala, { Scale = 1.03 })
-            C.tween(botao, { BackgroundColor3 = clarear(base()) })
-        end)
-        botao.MouseLeave:Connect(function()
-            C.tween(escala, { Scale = 1 })
-            C.tween(botao, { BackgroundColor3 = base() })
-        end)
-        botao.MouseButton1Down:Connect(function()
-            C.tween(escala, { Scale = 0.96 }, 0.06)
-            C.tween(botao, { BackgroundColor3 = escurecer(base()) }, 0.06)
-        end)
-        botao.MouseButton1Up:Connect(function()
-            C.tween(escala, { Scale = 1.03 }, 0.08)
-            C.tween(botao, { BackgroundColor3 = clarear(base()) }, 0.08)
-        end)
+        botao.MouseEnter:Connect(function() C.tween(botao, { BackgroundColor3 = clarear(base()) }) end)
+        botao.MouseLeave:Connect(function() C.tween(botao, { BackgroundColor3 = base() }) end)
+        botao.MouseButton1Down:Connect(function() C.tween(botao, { BackgroundColor3 = escurecer(base()) }, 0.06) end)
+        botao.MouseButton1Up:Connect(function() C.tween(botao, { BackgroundColor3 = clarear(base()) }, 0.06) end)
         if p.OnClick then botao.MouseButton1Click:Connect(p.OnClick) end
 
         return botao
     end
 
     function C.pintar(botao, cor)
-        local gradiente = botao:FindFirstChild("Gradiente")
-        local usarGradiente = gradiente ~= nil and cor == Tema.rosa
-        if gradiente then gradiente.Enabled = usarGradiente end
-        local base = usarGradiente and Color3.new(1, 1, 1) or cor
-        botao:SetAttribute("CorBase", base)
-        C.tween(botao, { BackgroundColor3 = base })
+        botao:SetAttribute("CorBase", cor)
+        C.tween(botao, { BackgroundColor3 = cor })
     end
 
     function C.sombra(pai, tamanho, posicao, ancora, raio)
-        local camadas = {}
-        for i, info in ipairs({ { 6, 0.8 }, { 14, 0.88 }, { 24, 0.94 } }) do
-            camadas[i] = C.criar("Frame", {
-                Parent = pai, BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = info[2],
-                AnchorPoint = ancora or Vector2.new(0.5, 0.5), Position = posicao,
-                Size = tamanho + UDim2.new(0, info[1] * 2, 0, info[1] * 2), ZIndex = 0,
-            }, { C.canto((raio or 14) + info[1]) })
-        end
-        return camadas
+        return C.criar("Frame", {
+            Parent = pai, BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.82,
+            AnchorPoint = ancora or Vector2.new(0.5, 0.5), Position = posicao,
+            Size = tamanho + UDim2.new(0, 10, 0, 10), ZIndex = 0,
+        }, { C.canto((raio or 14) + 5) })
     end
 
     function C.icone(p)
@@ -347,31 +320,23 @@ return function(App)
         local card = C.criar("Frame", {
             Parent = area, LayoutOrder = contadorToast, BackgroundColor3 = Tema.painel,
             Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
-        }, { C.canto(12), C.borda(cor), C.padding(12, 14, 12, 20) })
-        local escala = C.criar("UIScale", { Parent = card, Scale = 0.85 })
+        }, { C.canto(10), C.borda(), C.padding(10, 12, 10, 18) })
 
         local faixa = C.criar("Frame", {
-            Parent = card, BackgroundColor3 = Color3.new(1, 1, 1), Position = UDim2.new(0, -12, 0, 0),
-            Size = UDim2.new(0, 4, 1, 0),
+            Parent = card, BackgroundColor3 = cor, Position = UDim2.new(0, -10, 0, 0),
+            Size = UDim2.new(0, 3, 1, 0),
         }, { C.canto(2) })
-        if tipo == "ok" or tipo == "erro" then
-            faixa.BackgroundColor3 = cor
-        else
-            C.gradiente(90).Parent = faixa
-        end
 
         local rotulo = C.texto({
             Parent = card, Text = (Tema.icones[tipo] or "") .. "  " .. texto, TextWrapped = true,
             Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Font = Tema.fonteMedia,
         })
 
-        C.tween(escala, { Scale = 1 }, 0.2)
         task.delay(4, function()
             if not card.Parent then return end
-            C.tween(escala, { Scale = 0.9 }, 0.25)
-            C.tween(card, { BackgroundTransparency = 1 }, 0.25)
-            C.tween(rotulo, { TextTransparency = 1 }, 0.25)
-            C.tween(faixa, { BackgroundTransparency = 1 }, 0.25)
+            C.tween(card, { BackgroundTransparency = 1 }, 0.3)
+            C.tween(rotulo, { TextTransparency = 1 }, 0.3)
+            C.tween(faixa, { BackgroundTransparency = 1 }, 0.3)
             task.wait(0.3)
             card:Destroy()
         end)

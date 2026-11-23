@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "5.4"
+Config.VERSAO = "5.5"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -26,7 +26,8 @@ Config.SAMHUB = {
     DISTANCIA_CAIXA_CORREIO = 60,
     DISTANCIA_PERTO         = 6,
     ESPERA_CAIXA_CORREIO    = 25,
-    TEMPO_MAX_ANDANDO       = 60,
+    TEMPO_MAX_ANDANDO       = 40,
+    DISTANCIA_MAX_ANDAR     = 150,
     OFFSET_CAIXA            = nil,
 
     PALAVRAS_PEDIDO = { "trade request", "sent you a trade", "trade", "troca", "trocar", "negociar" },
