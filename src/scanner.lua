@@ -117,10 +117,12 @@ return function(App)
                 nomeOriginal = nome,
                 detalhe = table.concat(extras, " · "),
                 icone = icone(tudo),
+                cartao = cartao,
             })
         end
         return casas
     end
+    Scanner.lerCartoes = lerCartoes
 
     local function pareceCasa(texto)
         if not textoValido(texto) then return false end

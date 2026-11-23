@@ -280,10 +280,15 @@ return function(App)
             end,
         })
 
+        local linhaCasa = C.linha(cardComprador, 6, 32)
         C.botao({
-            Parent = cardComprador, LayoutOrder = 6, Texto = "📮  Colocar casa à venda",
-            Size = UDim2.new(1, 0, 0, 32), TextSize = 11,
+            Parent = linhaCasa, Texto = "📮  À venda", Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11,
             OnClick = function() task.spawn(Casa.listarParaTroca) end,
+        })
+        C.botao({
+            Parent = linhaCasa, Texto = "🔎  Conferir", Position = UDim2.new(0.5, 4, 0, 0),
+            Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11,
+            OnClick = function() task.spawn(Casa.conferirVenda) end,
         })
 
         cardCasas:FindFirstChildWhichIsA("UIListLayout"):Destroy()
@@ -499,6 +504,7 @@ return function(App)
         maid:Add(Historico.Mudou:Connect(renderHistorico))
 
         local cardTrade, cardTempo = colunas(pgAjustes, 0.5)
+        cardTrade:FindFirstChildWhichIsA("UIListLayout").Padding = UDim.new(0, 4)
 
         C.cabecalho(cardTrade, 1, "🔄", "Trade")
         local function toggle(ordem, chave, texto, descricao)
@@ -510,10 +516,12 @@ return function(App)
                 end,
             })
         end
-        toggle(2, "ACEITAR_PEDIDO", "Aceitar pedido do comprador", "Clica em Aceitar no aviso de trade dele")
-        toggle(3, "LISTAR_AO_ATIVAR", "Colocar à venda ao ativar", "Usa a caixa de correio sozinho")
-        toggle(4, "RECUSAR_OUTROS", "Recusar outras pessoas", "Desligado: só ignora")
-        toggle(5, "VERIFICAR_CASA", "Conferir casa no trade", "Só aceita se o nome da casa aparecer")
+        toggle(2, "ACEITAR_PEDIDO", "Aceitar pedido", "Accept no aviso dele")
+        toggle(3, "LISTAR_AO_ATIVAR", "Pôr à venda ao ativar", "Usa a caixa de correio")
+        toggle(4, "ANDAR_ATE_CAIXA", "Andar até a caixa", "Vai sozinho até ela")
+        toggle(5, "CONFERIR_VENDA", "Conferir após listar", "Acha a casa com Unlist")
+        toggle(6, "RECUSAR_OUTROS", "Recusar outras pessoas", "Desligado: só ignora")
+        toggle(7, "VERIFICAR_CASA", "Conferir casa no trade", "Só se a casa aparecer")
 
         C.cabecalho(cardTempo, 1, "⏱", "Tempo")
         local function stepper(ordem, chave, texto, minimo, maximo, passo)
@@ -614,8 +622,12 @@ return function(App)
                 local painel = Scanner.acharPainel()
                 dLista(se(painel ~= nil, "achada", "abra MY HOMES"), se(painel ~= nil, true, nil))
                 local c = Casa.diagnostico()
-                if c.caixaCorreio then
+                if c.menuAberto then
+                    dCaixa("menu aberto", true)
+                elseif c.caixaCorreio then
                     dCaixa(string.format("%s a %.0f studs", c.tipo or "achada", c.distancia or 0), true)
+                elseif c.placa then
+                    dCaixa(string.format("placa a %.0f studs", c.distanciaPlaca or 0), true)
                 else
                     dCaixa("não achei", false)
                 end

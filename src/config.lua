@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "5.1"
+Config.VERSAO = "5.2"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -16,9 +16,17 @@ Config.SAMHUB = {
     NOMES_RECUSAR   = { "decline", "cancel" },
 
     PALAVRAS_CAIXA_CORREIO = { "mail", "correio", "trade house", "list for trade" },
-    TEXTO_LISTAR_CASA      = { "List for Trade", "Trade House", "Listar para troca", "Trocar casa" },
+    TEXTO_LISTAR_CASA      = { "List for Trade", "Trade House", "Listar para troca" },
+    TEXTO_DESLISTAR        = { "Unlist from Trade", "Unlist", "Remove from Trade", "Remover da troca" },
+    TEXTO_TROCAR_CASA      = { "Change House", "Trocar de casa", "Mudar de casa" },
+    PALAVRAS_A_VENDA       = { "unlist", "for trade", "listed", "à venda" },
+    PADROES_PLACA_CASA     = { "%s's house", "casa de %s" },
+    TECLA_INTERAGIR        = Enum.KeyCode.E,
+    TECLA_TROCAR_CASA      = Enum.KeyCode.One,
     DISTANCIA_CAIXA_CORREIO = 60,
+    DISTANCIA_PERTO         = 6,
     ESPERA_CAIXA_CORREIO    = 25,
+    TEMPO_MAX_ANDANDO       = 60,
 
     PALAVRAS_PEDIDO = { "trade request", "sent you a trade", "trade", "troca", "trocar", "negociar" },
 
@@ -26,6 +34,8 @@ Config.SAMHUB = {
     ACEITAR_PEDIDO    = true,
     VERIFICAR_CASA    = false,
     LISTAR_AO_ATIVAR  = true,
+    ANDAR_ATE_CAIXA   = true,
+    CONFERIR_VENDA    = true,
     TEMPO_ESTAVEL     = 1.5,
     DELAY_MIN         = 0.8,
     DELAY_MAX         = 2.5,
@@ -43,6 +53,7 @@ Config.SAMHUB = {
 
 Config.AJUSTES_SALVOS = {
     "RECUSAR_OUTROS", "ACEITAR_PEDIDO", "VERIFICAR_CASA", "LISTAR_AO_ATIVAR",
+    "ANDAR_ATE_CAIXA", "CONFERIR_VENDA",
     "TEMPO_ESTAVEL", "DELAY_MIN", "DELAY_MAX",
 }
 
