@@ -2,44 +2,82 @@ return function(App)
     local Config, Utils, Historico = App.Config, App.Utils, App.Historico
     local S, E = Config.SAMHUB, Config.Estado
     local Players = game:GetService("Players")
-    local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+    local Eu = Players.LocalPlayer
+    local PlayerGui = Eu:WaitForChild("PlayerGui")
 
     local Trade = {}
     local rodando = false
 
-    local function labelParceiro(app)
-        local label = app:FindFirstChild(S.NOME_PARCEIRO, true)
-        if label and (label:IsA("TextLabel") or label:IsA("TextButton")) then return label end
-        return nil
-    end
-
-    local function janelaTrade()
-        local app = PlayerGui:FindFirstChild(S.NOME_JANELA_TRADE, true)
-        if not app or not Utils.visivel(app) then return nil end
-        local label = labelParceiro(app)
-        if not label or not Utils.naTela(label) then return nil end
-        return app
-    end
-
-    local function textoParceiro(janela)
-        local label = labelParceiro(janela)
-        if not label then return nil end
-        local texto = string.lower(Utils.limpar(label.Text))
-        texto = string.gsub(texto, "^@", "")
-        if texto == "" or Config.PLACEHOLDERS[texto] then return nil end
-        return texto
-    end
-
-    local function acharJogador(texto)
+    local function jogadorExato(texto)
         local porApelido = {}
         for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= Players.LocalPlayer then
+            if p ~= Eu then
                 if string.lower(p.Name) == texto then return p end
                 if string.lower(p.DisplayName) == texto then table.insert(porApelido, p) end
             end
         end
         if #porApelido == 1 then return porApelido[1] end
-        return nil, (#porApelido > 1 and "apelido repetido" or "não está no servidor")
+        return nil, (#porApelido > 1 and "apelido repetido" or nil)
+    end
+
+    local function jogadorNaFrase(texto)
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= Eu then
+                if #p.Name >= 3 and Utils.temPalavra(texto, string.lower(p.Name)) then return p end
+            end
+        end
+        local achados = {}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= Eu and #p.DisplayName >= 3 and Utils.temPalavra(texto, string.lower(p.DisplayName)) then
+                table.insert(achados, p)
+            end
+        end
+        return #achados == 1 and achados[1] or nil
+    end
+
+    local function lerTexto(obj)
+        local t = string.lower(Utils.limpar(obj.Text))
+        return (string.gsub(t, "^@", ""))
+    end
+
+    local function appTrade()
+        local app = PlayerGui:FindFirstChild(S.NOME_JANELA_TRADE, true)
+        if app and Utils.visivel(app) then return app end
+        return nil
+    end
+
+    local function lerJanela()
+        local app = appTrade()
+        if not app then return nil end
+
+        local textoLabel, erroLabel
+        local label = app:FindFirstChild(S.NOME_PARCEIRO, true)
+        if label and (label:IsA("TextLabel") or label:IsA("TextButton")) and Utils.naTela(label) then
+            local texto = lerTexto(label)
+            if texto ~= "" and not Config.PLACEHOLDERS[texto] then
+                local jogador, erro = jogadorExato(texto)
+                jogador = jogador or jogadorNaFrase(texto)
+                if jogador then return app, jogador, texto end
+                textoLabel, erroLabel = texto, erro
+            end
+        end
+
+        for _, d in ipairs(app:GetDescendants()) do
+            if (d:IsA("TextLabel") or d:IsA("TextButton")) and Utils.naTela(d) then
+                local texto = lerTexto(d)
+                if texto ~= "" and not Config.PLACEHOLDERS[texto] then
+                    local jogador = jogadorExato(texto)
+                    if jogador then return app, jogador, texto end
+                end
+            end
+        end
+
+        if textoLabel then return app, nil, textoLabel, erroLabel end
+        return nil
+    end
+
+    local function janelaTrade()
+        return (lerJanela())
     end
 
     local function fotoOferta(janela)
@@ -99,40 +137,47 @@ return function(App)
         end
     end
 
-    local function contemPalavra(texto, palavra)
-        return string.find(texto, "%f[%w_]" .. Utils.escaparPadrao(palavra) .. "%f[^%w_]") ~= nil
-    end
-
-    local function aceitarPedido()
-        local comprador = Players:GetPlayerByUserId(E.userIdAlvo)
-        if not comprador then return false end
+    local function acharPedido()
+        local comprador = E.userIdAlvo and Players:GetPlayerByUserId(E.userIdAlvo)
+        if not comprador then return nil end
         local nomes = { string.lower(comprador.Name), string.lower(comprador.DisplayName) }
+        local app = appTrade()
 
         for _, d in ipairs(PlayerGui:GetDescendants()) do
-            if d:IsA("TextLabel") and Utils.naTela(d) then
+            if d:IsA("TextLabel") and not (app and d:IsDescendantOf(app)) and Utils.naTela(d) then
                 local t = string.lower(Utils.limpar(d.Text))
-                if string.find(t, "trade", 1, true) or string.find(t, "troca", 1, true) then
-                    local temNome = contemPalavra(t, nomes[1]) or contemPalavra(t, nomes[2])
-                    if temNome then
-                        local atual = d.Parent
-                        for _ = 1, 6 do
-                            if not atual or atual:IsA("LayerCollector") then break end
-                            local botao = Utils.acharBotao(atual, S.TEXTO_ACEITAR)
-                            if botao and Utils.naTela(botao) then
-                                Utils.esperar()
-                                if Utils.clicar(botao) then
-                                    Utils.setStatus("Pedido de @" .. comprador.Name .. " aceito. Abrindo trade...", "espera")
-                                    task.wait(2)
-                                    return true
-                                end
+                if Utils.temPalavra(t, nomes[1]) or Utils.temPalavra(t, nomes[2]) then
+                    local quadro = d.Parent
+                    for _ = 1, 6 do
+                        if not quadro or quadro:IsA("LayerCollector") then break end
+                        local botao = Utils.acharBotao(quadro, S.TEXTO_ACEITAR, S.NOMES_ACEITAR)
+                        if botao then
+                            local tudo = string.lower(Utils.assinatura(quadro))
+                            if Utils.temAlguma(tudo, S.PALAVRAS_PEDIDO) then
+                                return botao, quadro, comprador
                             end
-                            atual = atual.Parent
                         end
+                        quadro = quadro.Parent
                     end
                 end
             end
         end
-        return false
+        return nil
+    end
+
+    local function aceitarPedido()
+        local botao, quadro, comprador = acharPedido()
+        if not botao then return false end
+        Utils.esperar()
+        local ok, metodo = Utils.clicar(botao, quadro)
+        if ok then
+            Utils.setStatus("Pedido de @" .. comprador.Name .. " aceito (" .. tostring(metodo) .. "). Abrindo trade...", "espera")
+            task.wait(1.5)
+        else
+            Utils.setStatus("Achei o pedido de @" .. comprador.Name .. " mas o clique não funcionou", "erro")
+            task.wait(3)
+        end
+        return ok
     end
 
     local function avisarEstado()
@@ -154,18 +199,24 @@ return function(App)
         Utils.setStatus("Buscando @" .. nick .. "...", "espera")
 
         task.spawn(function()
-            local ok, id = pcall(Players.GetUserIdFromNameAsync, Players, nick)
-            local achou = ok and id ~= nil
-            if achou then
-                E.nickAlvo, E.userIdAlvo, E.pausado = nick, id, false
-                avisarEstado()
-                local noServidor = Players:GetPlayerByUserId(id) ~= nil
-                Utils.setStatus("Aguardando trade de @" .. nick
-                    .. (noServidor and "" or " (ainda não está no servidor)"), "espera")
+            local noServidor = jogadorExato(string.lower(nick))
+            local id, nomeReal
+            if noServidor then
+                id, nomeReal = noServidor.UserId, noServidor.Name
             else
-                Utils.setStatus("Usuário @" .. nick .. " não existe (use o @username)", "erro")
+                local ok, resultado = pcall(Players.GetUserIdFromNameAsync, Players, nick)
+                if ok and resultado then id, nomeReal = resultado, nick end
             end
-            if aoTerminar then aoTerminar(achou) end
+
+            if id then
+                E.nickAlvo, E.userIdAlvo, E.pausado = nomeReal, id, false
+                avisarEstado()
+                Utils.setStatus("Aguardando trade de @" .. nomeReal
+                    .. (Players:GetPlayerByUserId(id) and "" or " (ainda não está no servidor)"), "espera")
+            else
+                Utils.setStatus("Não achei @" .. nick .. " (confira o nome)", "erro")
+            end
+            if aoTerminar then aoTerminar(id ~= nil) end
         end)
     end
 
@@ -197,26 +248,20 @@ return function(App)
 
     local function recusar(janela, nome, id, motivo)
         Utils.esperar()
-        local clicou = Utils.clicarPorTexto(janela, S.TEXTO_RECUSAR)
+        local clicou = Utils.clicarPorTexto(janela, S.TEXTO_RECUSAR, S.NOMES_RECUSAR)
         Historico.registrar(nome, id, "recusado", motivo)
         if clicou then
             Utils.setStatus("Recusado: " .. nome .. " (" .. motivo .. ")", "aviso")
         else
-            Utils.setStatus("Não achei o botão Recusar. Feche o trade de " .. nome .. " manualmente.", "aviso")
+            Utils.setStatus("Não consegui recusar " .. nome .. ". Feche o trade manualmente.", "aviso")
         end
         esperarFechar(janela)
     end
 
-    local function processar(janela)
-        local texto = textoParceiro(janela)
-        if not texto then
-            return Utils.setStatus("Lendo nome do parceiro...", "espera")
-        end
-
-        local jogador, erro = acharJogador(texto)
+    local function processar(janela, jogador, texto, erro)
         if not (jogador and jogador.UserId == E.userIdAlvo) then
-            local nome = jogador and jogador.Name or texto
-            local motivo = erro or "não é o comprador"
+            local nome = jogador and jogador.Name or texto or "?"
+            local motivo = jogador and "não é o comprador" or (erro or "não está no servidor")
             if S.RECUSAR_OUTROS then
                 return recusar(janela, nome, jogador and jogador.UserId, motivo)
             end
@@ -228,22 +273,24 @@ return function(App)
             return Utils.setStatus("A casa marcada ainda não apareceu no trade", "espera")
         end
 
-        Utils.setStatus("Conferindo oferta de @" .. jogador.Name .. "...", "espera")
+        Utils.setStatus("Trade com @" .. jogador.Name .. " aberto. Conferindo oferta...", "espera")
         local estavel, foto = ofertaEstavel(janela)
         if not estavel then
             return Utils.setStatus("Esperando: " .. foto, "espera")
         end
 
         Utils.esperar()
-        local botaoAceitar = Utils.acharBotao(janela, S.TEXTO_ACEITAR)
+        local botaoAceitar = Utils.acharBotao(janela, S.TEXTO_ACEITAR, S.NOMES_ACEITAR)
         if not botaoAceitar then
-            return Utils.setStatus("Botão Aceitar não encontrado (use Mapear trade)", "erro")
+            return Utils.setStatus("Não achei o botão Aceitar (veja a aba Diagnóstico)", "erro")
         end
-        if not Utils.clicar(botaoAceitar) then
+        local aceitou, metodo = Utils.clicar(botaoAceitar, janela)
+        if not aceitou then
             E.pausado = true
             avisarEstado()
-            return Utils.setStatus("Seu executor não consegue clicar. Pausado.", "erro")
+            return Utils.setStatus("O clique no Aceitar não funcionou com nenhum método. Pausado.", "erro")
         end
+        Utils.setStatus("Aceitei (" .. tostring(metodo) .. "). Esperando o Confirmar...", "espera")
 
         local confirmou, t = false, 0
         while rodando and t < S.TIMEOUT_CONFIRMAR + 15 do
@@ -253,15 +300,15 @@ return function(App)
 
             local agora = fotoOferta(janela)
             if S.NOME_OFERTA_PARCEIRO and foto and agora and agora ~= foto then
-                Utils.clicarPorTexto(janela, S.TEXTO_RECUSAR)
+                Utils.clicarPorTexto(janela, S.TEXTO_RECUSAR, S.NOMES_RECUSAR)
                 Utils.setStatus("A oferta mudou depois do Aceitar! Trade cancelado.", "erro")
                 Historico.registrar(jogador.Name, jogador.UserId, "cancelado", "oferta mudou")
                 return esperarFechar(janela, 5)
             end
 
             if not confirmou then
-                local botao = Utils.acharBotao(janela, S.TEXTO_CONFIRMAR)
-                if botao and Utils.clicar(botao) then
+                local botao = Utils.acharBotao(janela, S.TEXTO_CONFIRMAR, S.NOMES_CONFIRMAR)
+                if botao and Utils.clicar(botao, janela) then
                     confirmou = true
                     Utils.setStatus("Confirmado. Esperando o comprador...", "espera")
                 elseif t > S.TIMEOUT_CONFIRMAR then
@@ -285,6 +332,23 @@ return function(App)
         end
     end
 
+    function Trade.diagnostico()
+        local app = PlayerGui:FindFirstChild(S.NOME_JANELA_TRADE, true)
+        local janela, jogador, texto = lerJanela()
+        local botao = janela and Utils.acharBotao(janela, S.TEXTO_ACEITAR, S.NOMES_ACEITAR)
+        local comprador = E.userIdAlvo and Players:GetPlayerByUserId(E.userIdAlvo)
+        return {
+            appExiste = app ~= nil,
+            janelaAberta = janela ~= nil,
+            parceiro = jogador and ("@" .. jogador.Name) or texto,
+            parceiroOk = jogador ~= nil,
+            botaoAceitar = botao and botao.Name or nil,
+            comprador = E.userIdAlvo and ("@" .. E.nickAlvo) or nil,
+            compradorNoServidor = comprador ~= nil,
+            pedidoNaTela = acharPedido() ~= nil,
+        }
+    end
+
     function Trade.iniciar()
         if rodando then return end
         rodando = true
@@ -292,10 +356,10 @@ return function(App)
             while rodando do
                 task.wait(0.5)
                 if E.userIdAlvo and not E.pausado then
-                    local janela = janelaTrade()
                     local ok, err = pcall(function()
+                        local janela, jogador, texto, erro = lerJanela()
                         if janela then
-                            processar(janela)
+                            processar(janela, jogador, texto, erro)
                         elseif S.ACEITAR_PEDIDO then
                             aceitarPedido()
                         end
@@ -312,8 +376,6 @@ return function(App)
     function Trade.parar()
         rodando = false
     end
-
-    Trade.janelaTrade = janelaTrade
 
     return Trade
 end

@@ -76,11 +76,61 @@ return function(App)
         })
     end
 
+    function C.gradiente(rotacao)
+        return C.criar("UIGradient", {
+            Color = ColorSequence.new(Tema.rosa, Tema.lilas), Rotation = rotacao or 45,
+        })
+    end
+
+    function C.card(p)
+        local filhos = { C.canto(Tema.raio), C.borda(), C.padding(14, 14, 14, 14) }
+        if p.Lista ~= false then table.insert(filhos, C.lista(p.Espaco or 8)) end
+        return C.criar("Frame", {
+            Parent = p.Parent, BackgroundColor3 = Tema.painel, Size = p.Size or UDim2.new(1, 0, 1, 0),
+            Position = p.Position or UDim2.new(), LayoutOrder = p.LayoutOrder or 0,
+        }, filhos)
+    end
+
+    function C.cabecalho(pai, ordem, icone, texto)
+        local linha = C.linha(pai, ordem, 22)
+        C.texto({
+            Parent = linha, Text = icone .. "  " .. texto, Size = UDim2.new(1, 0, 1, -4),
+            Font = Tema.fonteForte, TextSize = 13,
+        })
+        C.criar("Frame", {
+            Parent = linha, BackgroundColor3 = Tema.rosa, BorderSizePixel = 0,
+            Position = UDim2.new(0, 0, 1, -2), Size = UDim2.new(0, 28, 0, 2),
+        }, { C.canto(1) })
+        return linha
+    end
+
+    function C.info(pai, ordem, rotulo)
+        local linha = C.linha(pai, ordem, 22)
+        local bolinha = C.criar("Frame", {
+            Parent = linha, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 0, 0.5, 0),
+            Size = UDim2.new(0, 8, 0, 8), BackgroundColor3 = Tema.apagado,
+        }, { C.canto(4) })
+        C.texto({
+            Parent = linha, Text = rotulo, Position = UDim2.new(0, 16, 0, 0), Size = UDim2.new(0.5, -16, 1, 0),
+            TextSize = 11, TextColor3 = Tema.suave,
+        })
+        local valor = C.texto({
+            Parent = linha, Text = "-", Position = UDim2.new(0.5, 0, 0, 0), Size = UDim2.new(0.5, 0, 1, 0),
+            TextSize = 11, Font = Tema.fonteMedia, TextXAlignment = Enum.TextXAlignment.Right,
+            TextTruncate = Enum.TextTruncate.AtEnd,
+        })
+        return function(texto, ok)
+            valor.Text = tostring(texto)
+            local cor = (ok == true and Tema.verde) or (ok == false and Tema.vermelho) or Tema.apagado
+            bolinha.BackgroundColor3 = cor
+        end
+    end
+
     local function clarear(cor) return cor:Lerp(Color3.new(1, 1, 1), 0.12) end
     local function escurecer(cor) return cor:Lerp(Color3.new(0, 0, 0), 0.18) end
 
     local CORES_VARIANTE = {
-        primario = Tema.destaque,
+        primario = Tema.rosa,
         secundario = Tema.painel2,
         sucesso = Tema.verde,
         perigo = Tema.vermelho,
@@ -175,7 +225,7 @@ return function(App)
 
         local valor = p.Valor == true
         local function desenhar(animar)
-            local corTrilho = valor and Tema.verde or Tema.painel2
+            local corTrilho = valor and Tema.rosa or Tema.painel2
             local posicao = valor and UDim2.new(1, -19, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)
             if animar then
                 C.tween(trilho, { BackgroundColor3 = corTrilho })

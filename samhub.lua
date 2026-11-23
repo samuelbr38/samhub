@@ -2,36 +2,68 @@ local REPO = "https://raw.githubusercontent.com/samuelbr38/samhub/refs/heads/mai
 
 local MODO_DEV = false
 
+local MODULOS = { "config", "tema", "utils", "historico", "scanner", "mapeador", "casa", "trade", "componentes", "ui" }
+
 local env = (typeof(getgenv) == "function" and getgenv()) or _G
 if env.SAMHUB and env.SAMHUB.fechar then
     pcall(env.SAMHUB.fechar)
 end
 
+if not game:IsLoaded() then game.Loaded:Wait() end
+
 local function baixar(caminho)
     if MODO_DEV then
         return readfile("samhub/" .. caminho)
     end
-    return game:HttpGet(REPO .. caminho)
+    return game:HttpGet(REPO .. caminho .. "?v=" .. tostring(os.time()))
 end
 
-local function carregar(nome)
-    local ok, codigo = pcall(baixar, "src/" .. nome .. ".lua")
-    assert(ok and codigo and codigo ~= "", "[SAMHUB] Falha ao baixar " .. nome .. ": " .. tostring(codigo))
+local codigos, faltam = {}, #MODULOS
+local inicio = os.clock()
+
+for _, nome in ipairs(MODULOS) do
+    task.spawn(function()
+        local ultimoErro
+        for tentativa = 1, 3 do
+            local ok, resultado = pcall(baixar, "src/" .. nome .. ".lua")
+            if ok and type(resultado) == "string" and resultado ~= "" and not string.find(resultado, "^404") then
+                codigos[nome] = resultado
+                break
+            end
+            ultimoErro = resultado
+            task.wait(0.4 * tentativa)
+        end
+        if not codigos[nome] then
+            codigos[nome] = false
+            warn("[SAMHUB] não baixou src/" .. nome .. ".lua: " .. tostring(ultimoErro))
+        end
+        faltam -= 1
+    end)
+end
+
+while faltam > 0 and os.clock() - inicio < 30 do
+    task.wait()
+end
+
+local function modulo(nome)
+    local codigo = codigos[nome]
+    assert(codigo, "[SAMHUB] Faltou o arquivo src/" .. nome .. ".lua no GitHub")
     local fn, err = loadstring(codigo, "=" .. nome)
-    assert(fn, "[SAMHUB] Erro de sintaxe em " .. nome .. ": " .. tostring(err))
+    assert(fn, "[SAMHUB] Erro em " .. nome .. ".lua: " .. tostring(err))
     return fn()
 end
 
 local App = {}
-App.Config    = carregar("config")
-App.Tema      = carregar("tema")
-App.Utils     = carregar("utils")(App)
-App.Historico = carregar("historico")(App)
-App.Scanner   = carregar("scanner")(App)
-App.Mapeador  = carregar("mapeador")(App)
-App.Trade     = carregar("trade")(App)
-App.C         = carregar("componentes")(App)
-App.UI        = carregar("ui")(App)
+App.Config    = modulo("config")
+App.Tema      = modulo("tema")
+App.Utils     = modulo("utils")(App)
+App.Historico = modulo("historico")(App)
+App.Scanner   = modulo("scanner")(App)
+App.Mapeador  = modulo("mapeador")(App)
+App.Casa      = modulo("casa")(App)
+App.Trade     = modulo("trade")(App)
+App.C         = modulo("componentes")(App)
+App.UI        = modulo("ui")(App)
 
 local S = App.Config.SAMHUB
 local maid = App.Utils.Maid()
@@ -66,5 +98,10 @@ App.Historico.carregar()
 App.Trade.iniciar()
 env.SAMHUB = App
 
-App.Utils.setStatus("Pronto! Abra a lista de casas e clique em Escanear.", "info")
-print("✅ SAMHUB v" .. App.Config.VERSAO .. " iniciado (RightShift esconde o menu)")
+local tempo = string.format("%.1fs", os.clock() - inicio)
+if game.PlaceId ~= App.Config.PLACE_ADOPT_ME then
+    App.Utils.setStatus("Carregado em " .. tempo .. ", mas este jogo não é o Adopt Me", "aviso")
+else
+    App.Utils.setStatus("Carregado em " .. tempo .. "! Abra MY HOMES e clique em Escanear.", "info")
+end
+print("💗 SAMHUB v" .. App.Config.VERSAO .. " carregado em " .. tempo .. " (RightShift esconde o menu)")

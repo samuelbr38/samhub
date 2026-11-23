@@ -7,13 +7,15 @@ return function(App)
     local Mapeador = {}
     local LIMITE = 1500
 
-    local function entregar(titulo, linhas)
+    local function entregar(titulo, linhas, arquivo)
         if #linhas >= LIMITE then table.insert(linhas, "... (cortado em " .. LIMITE .. " linhas)") end
         local saida = "===== SAMHUB: " .. titulo .. " =====\n" .. table.concat(linhas, "\n")
         print(saida)
         local copiou = Utils.copiar(saida)
-        Utils.setStatus(titulo .. ": " .. #linhas .. " linhas (F9"
-            .. (copiou and " e copiado. Cole no chat)" or ")"), "info")
+        local salvou = Utils.salvarTexto(arquivo, saida)
+        Utils.setStatus(titulo .. ": " .. #linhas .. " linhas"
+            .. (copiou and " · copiado" or "")
+            .. (salvou and (" · salvo em " .. arquivo) or ""), "info")
     end
 
     local function arvore(raiz)
@@ -44,7 +46,7 @@ return function(App)
         if not app then
             return Utils.setStatus("Não achei '" .. S.NOME_JANELA_TRADE .. "'. Use Mapear tudo.", "erro")
         end
-        entregar("MAPA DO TRADE", arvore(app))
+        entregar("MAPA DO TRADE", arvore(app), "samhub_mapa_trade.txt")
     end
 
     function Mapeador.mapearCasas()
@@ -52,7 +54,7 @@ return function(App)
         if not painel then
             return Utils.setStatus("Lista de casas não encontrada. Abra MY HOMES e tente de novo.", "erro")
         end
-        entregar("MAPA DAS CASAS", arvore(painel))
+        entregar("MAPA DAS CASAS", arvore(painel), "samhub_mapa_casas.txt")
     end
 
     function Mapeador.mapear()
@@ -66,7 +68,7 @@ return function(App)
                 end
             end
         end
-        entregar("MAPA DA TELA", linhas)
+        entregar("MAPA DA TELA", linhas, "samhub_mapa_tela.txt")
     end
 
     return Mapeador

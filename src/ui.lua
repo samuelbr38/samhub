@@ -1,6 +1,6 @@
 return function(App)
     local Config, Tema, Utils, C = App.Config, App.Tema, App.Utils, App.C
-    local Scanner, Trade, Mapeador, Historico = App.Scanner, App.Trade, App.Mapeador, App.Historico
+    local Scanner, Trade, Mapeador, Historico, Casa = App.Scanner, App.Trade, App.Mapeador, App.Historico, App.Casa
     local S, E = Config.SAMHUB, Config.Estado
 
     local Players = game:GetService("Players")
@@ -9,11 +9,17 @@ return function(App)
 
     local UI = {}
 
-    local ALTURA_TOPO = 48
-    local ALTURA_ABAS = 38
+    local W, H = Tema.largura, Tema.altura
+    local LAT, TOPO = Tema.larguraLateral, Tema.alturaTopo
+    local ALTURA_MARCA = 64
+
+    local function se(condicao, a, b)
+        if condicao then return a end
+        return b
+    end
 
     local function colocarNaTela(gui)
-        if typeof(gethui) == "function" then
+        if Utils.recursos.gethui then
             local ok, pasta = pcall(gethui)
             if ok and typeof(pasta) == "Instance" then
                 gui.Parent = pasta
@@ -27,7 +33,6 @@ return function(App)
 
     local function arrastavel(janela, alca, maid)
         local arrastando, inicioPos, inicioMouse = false, nil, nil
-
         alca.InputBegan:Connect(function(input)
             local tipo = input.UserInputType
             if tipo == Enum.UserInputType.MouseButton1 or tipo == Enum.UserInputType.Touch then
@@ -41,7 +46,6 @@ return function(App)
                 end)
             end
         end)
-
         maid:Add(UIS.InputChanged:Connect(function(input)
             local tipo = input.UserInputType
             if arrastando and (tipo == Enum.UserInputType.MouseMovement or tipo == Enum.UserInputType.Touch) then
@@ -61,156 +65,251 @@ return function(App)
     end
 
     local function pagina(pai)
-        return C.criar("ScrollingFrame", {
-            Parent = pai, BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, 0, 1, 0),
-            ScrollBarThickness = 3, ScrollBarImageColor3 = Tema.borda,
-            AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(), Visible = false,
-        }, { C.padding(14, 16, 14, 16), C.lista(8) })
+        return C.criar("Frame", {
+            Parent = pai, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Visible = false,
+        }, { C.padding(16, 16, 16, 16) })
+    end
+
+    local function colunas(pg, proporcao)
+        local esquerda = C.card({ Parent = pg, Size = UDim2.new(proporcao, -6, 1, 0) })
+        local direita = C.card({
+            Parent = pg, Position = UDim2.new(proporcao, 6, 0, 0), Size = UDim2.new(1 - proporcao, -6, 1, 0),
+        })
+        return esquerda, direita
     end
 
     function UI.criar(maid)
         local gui = C.criar("ScreenGui", {
             Name = "SAMHUB_Menu", ResetOnSpawn = false, IgnoreGuiInset = true,
-            ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+            ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 50,
         })
         colocarNaTela(gui)
         maid:Add(gui)
 
         local janela = C.criar("Frame", {
             Parent = gui, BackgroundColor3 = Tema.fundo, ClipsDescendants = true,
-            Position = UDim2.new(0, 40, 0.5, -Tema.altura / 2), Size = UDim2.new(0, Tema.largura, 0, 0),
-        }, { C.canto(Tema.raio), C.borda(Tema.borda) })
+            AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = UDim2.new(0, W, 0, 0),
+        }, { C.canto(14), C.borda(Tema.borda) })
 
-        local topo = C.criar("Frame", {
-            Parent = janela, BackgroundColor3 = Tema.painel, Size = UDim2.new(1, 0, 0, ALTURA_TOPO),
-        }, { C.canto(Tema.raio) })
+        local escala = C.criar("UIScale", { Parent = janela })
+        local function ajustarEscala()
+            local camera = workspace.CurrentCamera
+            if not camera then return end
+            local tela = camera.ViewportSize
+            escala.Scale = math.clamp(math.min((tela.X - 24) / W, (tela.Y - 24) / H), 0.45, 1)
+        end
+        ajustarEscala()
+        if workspace.CurrentCamera then
+            maid:Add(workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(ajustarEscala))
+        end
+
+        local lateral = C.criar("Frame", {
+            Parent = janela, BackgroundColor3 = Tema.lateral, Size = UDim2.new(0, LAT, 1, 0),
+        }, { C.canto(14) })
         C.criar("Frame", {
-            Parent = topo, BackgroundColor3 = Tema.painel, BorderSizePixel = 0,
-            Position = UDim2.new(0, 0, 1, -Tema.raio), Size = UDim2.new(1, 0, 0, Tema.raio),
+            Parent = lateral, BackgroundColor3 = Tema.lateral, BorderSizePixel = 0,
+            Position = UDim2.new(1, -14, 0, 0), Size = UDim2.new(0, 14, 1, 0),
+        })
+        C.criar("Frame", {
+            Parent = lateral, BackgroundColor3 = Tema.borda, BorderSizePixel = 0,
+            Position = UDim2.new(1, -1, 0, 0), Size = UDim2.new(0, 1, 1, 0),
         })
 
-        local logo = C.criar("Frame", {
-            Parent = topo, BackgroundColor3 = Color3.new(1, 1, 1), AnchorPoint = Vector2.new(0, 0.5),
-            Position = UDim2.new(0, 14, 0.5, 0), Size = UDim2.new(0, 28, 0, 28),
-        }, {
-            C.canto(8),
-            C.criar("UIGradient", {
-                Color = ColorSequence.new(Tema.destaque, Tema.roxo), Rotation = 45,
-            }),
+        local marca = C.criar("Frame", {
+            Parent = lateral, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, ALTURA_MARCA),
+        })
+        local fundoLogo = C.criar("Frame", {
+            Parent = marca, BackgroundColor3 = Color3.new(1, 1, 1),
+            Position = UDim2.new(0, 14, 0, 15), Size = UDim2.new(0, 34, 0, 34),
+        }, { C.canto(10), C.gradiente(45) })
+        local logo = C.criar("TextButton", {
+            Parent = fundoLogo, Text = "S", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
+            Font = Tema.fonteForte, TextSize = 17, TextColor3 = Color3.new(1, 1, 1),
         })
         C.texto({
-            Parent = logo, Text = "S", Size = UDim2.new(1, 0, 1, 0), Font = Tema.fonteForte, TextSize = 15,
-            TextXAlignment = Enum.TextXAlignment.Center,
+            Parent = marca, Text = "SAMHUB", Position = UDim2.new(0, 58, 0, 15), Size = UDim2.new(1, -62, 0, 18),
+            Font = Tema.fonteForte, TextSize = 15,
+        })
+        C.texto({
+            Parent = marca, Text = "v" .. Config.VERSAO .. " · Adopt Me", Position = UDim2.new(0, 58, 0, 33),
+            Size = UDim2.new(1, -62, 0, 14), TextSize = 10, TextColor3 = Tema.rosaClaro,
         })
 
-        C.texto({
-            Parent = topo, Text = "SAMHUB", Position = UDim2.new(0, 52, 0, 8), Size = UDim2.new(0, 120, 0, 18),
-            Font = Tema.fonteForte, TextSize = 14,
-        })
-        C.texto({
-            Parent = topo, Text = "Entrega de casas · v" .. Config.VERSAO, Position = UDim2.new(0, 52, 0, 25),
-            Size = UDim2.new(0, 160, 0, 14), TextSize = 10, TextColor3 = Tema.suave,
-        })
+        local nav = C.criar("Frame", {
+            Parent = lateral, BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, ALTURA_MARCA + 8),
+            Size = UDim2.new(1, 0, 0, 200),
+        }, { C.padding(0, 10, 0, 10), C.lista(4) })
 
+        local cardEstado = C.criar("Frame", {
+            Parent = lateral, BackgroundColor3 = Tema.painel2, Position = UDim2.new(0, 10, 1, -82),
+            Size = UDim2.new(1, -20, 0, 70),
+        }, { C.canto(10), C.borda() })
         local selo = C.criar("Frame", {
-            Parent = topo, BackgroundColor3 = Tema.apagado, AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, -78, 0.5, 0), Size = UDim2.new(0, 70, 0, 20),
+            Parent = cardEstado, BackgroundColor3 = Tema.apagado, Position = UDim2.new(0, 10, 0, 10),
+            Size = UDim2.new(0, 80, 0, 20),
         }, { C.canto(10) })
         local textoSelo = C.texto({
-            Parent = selo, Text = "INATIVO", Size = UDim2.new(1, 0, 1, 0), Font = Tema.fonteForte,
-            TextSize = 9, TextXAlignment = Enum.TextXAlignment.Center,
+            Parent = selo, Text = "INATIVO", Size = UDim2.new(1, 0, 1, 0), Font = Tema.fonteForte, TextSize = 9,
+            TextXAlignment = Enum.TextXAlignment.Center,
+        })
+        local textoComprador = C.texto({
+            Parent = cardEstado, Text = "Nenhum comprador", Position = UDim2.new(0, 10, 0, 38),
+            Size = UDim2.new(1, -20, 0, 20), TextSize = 11, TextColor3 = Tema.suave,
+            TextTruncate = Enum.TextTruncate.AtEnd,
         })
 
+        local area = C.criar("Frame", {
+            Parent = janela, BackgroundTransparency = 1, Position = UDim2.new(0, LAT, 0, 0),
+            Size = UDim2.new(1, -LAT, 1, 0),
+        })
+        local topo = C.criar("Frame", { Parent = area, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, TOPO) })
+        C.criar("Frame", {
+            Parent = topo, BackgroundColor3 = Tema.borda, BorderSizePixel = 0,
+            Position = UDim2.new(0, 0, 1, -1), Size = UDim2.new(1, 0, 0, 1),
+        })
+        local tituloPagina = C.texto({
+            Parent = topo, Position = UDim2.new(0, 20, 0, 11), Size = UDim2.new(1, -120, 0, 20),
+            Font = Tema.fonteForte, TextSize = 17,
+        })
+        local subtituloPagina = C.texto({
+            Parent = topo, Position = UDim2.new(0, 20, 0, 32), Size = UDim2.new(1, -120, 0, 14),
+            TextSize = 11, TextColor3 = Tema.suave,
+        })
         local botaoMin = C.icone({
-            Parent = topo, Texto = "–", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -42, 0.5, 0),
+            Parent = topo, Texto = "–", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -48, 0.5, 0),
         })
         C.icone({
-            Parent = topo, Texto = "✕", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -10, 0.5, 0),
+            Parent = topo, Texto = "✕", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 0),
             CorHover = Tema.vermelho, OnClick = function() App.fechar() end,
         })
 
-        arrastavel(janela, topo, maid)
-
-        local barraAbas = C.criar("Frame", {
-            Parent = janela, BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, ALTURA_TOPO),
-            Size = UDim2.new(1, 0, 0, ALTURA_ABAS),
-        })
-        C.criar("Frame", {
-            Parent = barraAbas, BackgroundColor3 = Tema.borda, BorderSizePixel = 0,
-            Position = UDim2.new(0, 0, 1, -1), Size = UDim2.new(1, 0, 0, 1),
-        })
-
-        local nomesAbas = { "🚚  Entrega", "📜  Histórico", "⚙️  Ajustes" }
-        local larguraAba = 1 / #nomesAbas
-        local indicador = C.criar("Frame", {
-            Parent = barraAbas, BackgroundColor3 = Tema.destaque, BorderSizePixel = 0,
-            Position = UDim2.new(0, 16, 1, -2), Size = UDim2.new(larguraAba, -32, 0, 2),
-        }, { C.canto(1) })
-
         local conteudo = C.criar("Frame", {
-            Parent = janela, BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, ALTURA_TOPO + ALTURA_ABAS),
-            Size = UDim2.new(1, 0, 1, -(ALTURA_TOPO + ALTURA_ABAS)),
+            Parent = area, BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, TOPO),
+            Size = UDim2.new(1, 0, 1, -TOPO),
         })
 
-        local botoesAba, paginas = {}, {}
+        arrastavel(janela, topo, maid)
+        arrastavel(janela, marca, maid)
+
+        local ABAS = {
+            { icone = "🚚", nome = "Entrega", sub = "Escolha o comprador e a casa" },
+            { icone = "📜", nome = "Histórico", sub = "Trades finalizados, recusados e cancelados" },
+            { icone = "⚙️", nome = "Ajustes", sub = "Comportamento e tempos" },
+            { icone = "🧪", nome = "Diagnóstico", sub = "O que o script está vendo agora" },
+        }
+        local itensNav, paginas = {}, {}
+        local abaAtual = 1
+        local aoAbrirAba = {}
+
         local function irPara(i)
+            abaAtual = i
             for j, pg in ipairs(paginas) do pg.Visible = (j == i) end
-            for j, b in ipairs(botoesAba) do
-                C.tween(b, { TextColor3 = (j == i) and Tema.texto or Tema.suave })
+            for j, item in ipairs(itensNav) do
+                local ativo = (j == i)
+                C.tween(item.botao, { BackgroundTransparency = ativo and 0.82 or 1, TextColor3 = ativo and Tema.texto or Tema.suave })
+                item.barra.Visible = ativo
             end
-            C.tween(indicador, { Position = UDim2.new(larguraAba * (i - 1), 16, 1, -2) }, 0.2)
+            tituloPagina.Text = ABAS[i].nome
+            subtituloPagina.Text = ABAS[i].sub
+            if aoAbrirAba[i] then task.spawn(aoAbrirAba[i]) end
         end
 
-        for i, nome in ipairs(nomesAbas) do
-            botoesAba[i] = C.criar("TextButton", {
-                Parent = barraAbas, Text = nome, BackgroundTransparency = 1, Font = Tema.fonteMedia, TextSize = 12,
-                TextColor3 = Tema.suave, Position = UDim2.new(larguraAba * (i - 1), 0, 0, 0),
-                Size = UDim2.new(larguraAba, 0, 1, -2),
-            })
-            botoesAba[i].MouseButton1Click:Connect(function() irPara(i) end)
+        for i, aba in ipairs(ABAS) do
+            local botao = C.criar("TextButton", {
+                Parent = nav, LayoutOrder = i, Text = aba.icone .. "   " .. aba.nome, AutoButtonColor = false,
+                BackgroundColor3 = Tema.rosa, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 38),
+                Font = Tema.fonteMedia, TextSize = 12, TextColor3 = Tema.suave,
+                TextXAlignment = Enum.TextXAlignment.Left,
+            }, { C.canto(9), C.padding(0, 10, 0, 16) })
+            local barra = C.criar("Frame", {
+                Parent = botao, BackgroundColor3 = Tema.rosa, AnchorPoint = Vector2.new(0, 0.5),
+                Position = UDim2.new(0, -10, 0.5, 0), Size = UDim2.new(0, 3, 0, 18), Visible = false,
+            }, { C.canto(2) })
+            botao.MouseEnter:Connect(function()
+                if abaAtual ~= i then C.tween(botao, { BackgroundTransparency = 0.92 }) end
+            end)
+            botao.MouseLeave:Connect(function()
+                if abaAtual ~= i then C.tween(botao, { BackgroundTransparency = 1 }) end
+            end)
+            botao.MouseButton1Click:Connect(function() irPara(i) end)
+            itensNav[i] = { botao = botao, barra = barra }
             paginas[i] = pagina(conteudo)
         end
-        local pgEntrega, pgHistorico, pgAjustes = paginas[1], paginas[2], paginas[3]
+        local pgEntrega, pgHistorico, pgAjustes, pgDiag = paginas[1], paginas[2], paginas[3], paginas[4]
+
+        local cardComprador, cardCasas = colunas(pgEntrega, 0.42)
+
+        C.cabecalho(cardComprador, 1, "👤", "Comprador")
 
         local cardStatus = C.criar("Frame", {
-            Parent = pgEntrega, LayoutOrder = 1, BackgroundColor3 = Tema.painel,
+            Parent = cardComprador, LayoutOrder = 2, BackgroundColor3 = Tema.painel2,
             Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
-        }, { C.canto(8), C.borda(), C.padding(10, 12, 10, 20) })
+        }, { C.canto(9), C.padding(9, 10, 9, 18) })
         local barraStatus = C.criar("Frame", {
-            Parent = cardStatus, BackgroundColor3 = Tema.destaque, Position = UDim2.new(0, -12, 0, 0),
+            Parent = cardStatus, BackgroundColor3 = Tema.rosa, Position = UDim2.new(0, -10, 0, 0),
             Size = UDim2.new(0, 3, 1, 0),
         }, { C.canto(2) })
         local textoStatus = C.texto({
             Parent = cardStatus, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
-            TextWrapped = true, Font = Tema.fonteMedia, Text = "",
+            TextWrapped = true, Font = Tema.fonteMedia, TextSize = 11, Text = "",
         })
 
-        C.titulo(pgEntrega, 2, "Comprador")
         local caixaNick = C.input({
-            Parent = pgEntrega, LayoutOrder = 3, Size = UDim2.new(1, 0, 0, 34),
-            Placeholder = "@username (não o apelido)", Icone = "👤",
+            Parent = cardComprador, LayoutOrder = 3, Size = UDim2.new(1, 0, 0, 34),
+            Placeholder = "@username ou apelido", Icone = "👤",
         })
 
-        local cabecalhoCasas = C.linha(pgEntrega, 4, 14)
-        C.titulo(cabecalhoCasas, 0, "Suas casas")
+        local buscando = false
+        local botaoAtivar = C.botao({
+            Parent = cardComprador, LayoutOrder = 4, Texto = "▶  Ativar", Variante = "primario",
+            Size = UDim2.new(1, 0, 0, 40), TextSize = 13,
+        })
+
+        local linhaControle = C.linha(cardComprador, 5, 32)
+        local botaoPausa = C.botao({
+            Parent = linhaControle, Texto = "⏸  Pausar", Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11,
+            OnClick = function() Trade.alternarPausa() end,
+        })
+        C.botao({
+            Parent = linhaControle, Texto = "🔄  Resetar", Position = UDim2.new(0.5, 4, 0, 0),
+            Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11,
+            OnClick = function()
+                Trade.resetar()
+                caixaNick.Text = ""
+            end,
+        })
+
+        C.botao({
+            Parent = cardComprador, LayoutOrder = 6, Texto = "📮  Colocar casa à venda",
+            Size = UDim2.new(1, 0, 0, 32), TextSize = 11,
+            OnClick = function() task.spawn(Casa.listarParaTroca) end,
+        })
+
+        cardCasas:FindFirstChildWhichIsA("UIListLayout"):Destroy()
+        C.cabecalho(cardCasas, 0, "🏠", "Suas casas")
         local contador = C.texto({
-            Parent = cabecalhoCasas, Size = UDim2.new(1, 0, 1, 0), TextXAlignment = Enum.TextXAlignment.Right,
+            Parent = cardCasas, Size = UDim2.new(1, 0, 0, 18), TextXAlignment = Enum.TextXAlignment.Right,
             TextSize = 10, TextColor3 = Tema.suave, Text = "",
         })
-
         local caixaBusca = C.input({
-            Parent = pgEntrega, LayoutOrder = 5, Size = UDim2.new(1, 0, 0, 30),
+            Parent = cardCasas, Position = UDim2.new(0, 0, 0, 32), Size = UDim2.new(1, -112, 0, 32),
             Placeholder = "Filtrar casas...", Icone = "🔎",
         })
-
+        C.botao({
+            Parent = cardCasas, Texto = "🔍  Escanear", Variante = "primario",
+            Position = UDim2.new(1, -104, 0, 32), Size = UDim2.new(0, 104, 0, 32), TextSize = 11,
+            OnClick = function() Scanner.escanear() end,
+        })
         local fundoLista = C.criar("Frame", {
-            Parent = pgEntrega, LayoutOrder = 6, BackgroundColor3 = Tema.painel, Size = UDim2.new(1, 0, 0, 140),
-        }, { C.canto(8), C.borda() })
+            Parent = cardCasas, BackgroundColor3 = Tema.painel2, Position = UDim2.new(0, 0, 0, 74),
+            Size = UDim2.new(1, 0, 1, -74),
+        }, { C.canto(9) })
         local listaCasas = C.criar("ScrollingFrame", {
             Parent = fundoLista, BackgroundTransparency = 1, BorderSizePixel = 0, Size = UDim2.new(1, 0, 1, 0),
-            ScrollBarThickness = 3, ScrollBarImageColor3 = Tema.borda,
+            ScrollBarThickness = 3, ScrollBarImageColor3 = Tema.rosa,
             AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(),
-        }, { C.padding(6), C.lista(2) })
+        }, { C.padding(6), C.lista(3) })
         local avisoVazio = C.texto({
             Parent = fundoLista, Size = UDim2.new(1, 0, 1, 0), TextXAlignment = Enum.TextXAlignment.Center,
             TextColor3 = Tema.apagado, TextSize = 11, TextWrapped = true,
@@ -224,31 +323,31 @@ return function(App)
         local function criarLinhaCasa(casa, ordem)
             local linha = C.criar("TextButton", {
                 Parent = listaCasas, LayoutOrder = ordem, Text = "", AutoButtonColor = false,
-                BackgroundColor3 = Tema.hover, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 28),
-            }, { C.canto(6) })
+                BackgroundColor3 = Tema.hover, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 32),
+            }, { C.canto(7) })
             local caixa = C.criar("Frame", {
-                Parent = linha, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 8, 0.5, 0),
-                Size = UDim2.new(0, 16, 0, 16), BackgroundColor3 = Tema.painel2,
-            }, { C.canto(5) })
+                Parent = linha, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 10, 0.5, 0),
+                Size = UDim2.new(0, 18, 0, 18), BackgroundColor3 = Tema.painel,
+            }, { C.canto(6) })
             local bordaCaixa = C.borda(Tema.apagado)
             bordaCaixa.Parent = caixa
             local check = C.texto({
                 Parent = caixa, Text = "✓", Size = UDim2.new(1, 0, 1, 0), Font = Tema.fonteForte,
-                TextSize = 12, TextColor3 = Tema.fundo, TextXAlignment = Enum.TextXAlignment.Center,
+                TextSize = 13, TextXAlignment = Enum.TextXAlignment.Center,
             })
             local textoLinha = (casa.icone or "🏠") .. "  " .. Utils.escaparRich(casa.nome)
             if casa.detalhe and casa.detalhe ~= "" then
-                textoLinha ..= '  <font color="#7c7c96" size="10">' .. Utils.escaparRich(casa.detalhe) .. "</font>"
+                textoLinha ..= '  <font color="#8c7088" size="10">' .. Utils.escaparRich(casa.detalhe) .. "</font>"
             end
             local nome = C.texto({
-                Parent = linha, Position = UDim2.new(0, 34, 0, 0), Size = UDim2.new(1, -42, 1, 0),
-                Text = textoLinha, RichText = true, TextSize = 11, TextTruncate = Enum.TextTruncate.AtEnd,
+                Parent = linha, Position = UDim2.new(0, 38, 0, 0), Size = UDim2.new(1, -46, 1, 0),
+                Text = textoLinha, RichText = true, TextSize = 12, TextTruncate = Enum.TextTruncate.AtEnd,
             })
 
             local function desenhar()
                 local marcada = E.casasSelecionadas[casa.nome] == true
-                C.tween(caixa, { BackgroundColor3 = marcada and Tema.verde or Tema.painel2 }, 0.1)
-                bordaCaixa.Color = marcada and Tema.verde or Tema.apagado
+                C.tween(caixa, { BackgroundColor3 = marcada and Tema.rosa or Tema.painel }, 0.1)
+                bordaCaixa.Color = marcada and Tema.rosa or Tema.apagado
                 check.Visible = marcada
                 nome.TextColor3 = marcada and Tema.texto or Tema.suave
             end
@@ -286,16 +385,6 @@ return function(App)
         end
         caixaBusca:GetPropertyChangedSignal("Text"):Connect(renderCasas)
 
-        local linha1 = C.linha(pgEntrega, 7, 36)
-        C.botao({
-            Parent = linha1, Texto = "🔍  Escanear", Size = UDim2.new(0.5, -4, 1, 0),
-            OnClick = function() Scanner.escanear() end,
-        })
-        local buscando = false
-        local botaoAtivar = C.botao({
-            Parent = linha1, Texto = "▶  Ativar", Variante = "sucesso",
-            Position = UDim2.new(0.5, 4, 0, 0), Size = UDim2.new(0.5, -4, 1, 0),
-        })
         botaoAtivar.MouseButton1Click:Connect(function()
             if buscando then return end
             if Trade.estado() ~= "inativo" then return Trade.desativar() end
@@ -303,61 +392,47 @@ return function(App)
                 return Utils.setStatus("Digite o @username do comprador", "aviso")
             end
             if contarSelecionadas() == 0 then
-                return Utils.setStatus("Selecione pelo menos 1 casa", "aviso")
+                return Utils.setStatus("Marque a casa que vai vender (lista ao lado)", "aviso")
             end
             buscando = true
             botaoAtivar.Text = "Buscando..."
-            Trade.ativar(caixaNick.Text, function()
+            Trade.ativar(caixaNick.Text, function(achou)
                 buscando = false
                 Utils.EstadoMudou:Fire()
+                if achou and S.LISTAR_AO_ATIVAR then
+                    task.wait(0.5)
+                    Casa.listarParaTroca()
+                end
             end)
         end)
 
-        local linha2 = C.linha(pgEntrega, 8, 32)
-        local botaoPausa = C.botao({
-            Parent = linha2, Texto = "⏸  Pausar", Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11,
-            OnClick = function() Trade.alternarPausa() end,
-        })
-        C.botao({
-            Parent = linha2, Texto = "🔄  Resetar", Position = UDim2.new(0.5, 4, 0, 0),
-            Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11,
-            OnClick = function()
-                Trade.resetar()
-                caixaNick.Text = ""
-            end,
-        })
+        local cardResumo, cardLista = colunas(pgHistorico, 0.3)
+        C.cabecalho(cardResumo, 1, "📊", "Resumo")
 
         local CORES_RESULTADO = {
             finalizado = Tema.verde, recusado = Tema.vermelho, cancelado = Tema.amarelo,
         }
-
-        local resumo = C.criar("Frame", {
-            Parent = pgHistorico, LayoutOrder = 1, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 52),
-        }, {
-            C.criar("UIListLayout", {
-                FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 8),
-                SortOrder = Enum.SortOrder.LayoutOrder,
-            }),
-        })
         local numeros = {}
         for i, info in ipairs({ { "finalizado", "Finalizados" }, { "recusado", "Recusados" }, { "cancelado", "Cancelados" } }) do
             local card = C.criar("Frame", {
-                Parent = resumo, LayoutOrder = i, BackgroundColor3 = Tema.painel,
-                Size = UDim2.new(1 / 3, -6, 1, 0),
-            }, { C.canto(8), C.borda() })
+                Parent = cardResumo, LayoutOrder = 1 + i, BackgroundColor3 = Tema.painel2,
+                Size = UDim2.new(1, 0, 0, 54),
+            }, { C.canto(9) })
+            C.criar("Frame", {
+                Parent = card, BackgroundColor3 = CORES_RESULTADO[info[1]], Position = UDim2.new(0, 0, 0, 12),
+                Size = UDim2.new(0, 3, 1, -24),
+            }, { C.canto(2) })
             numeros[info[1]] = C.texto({
-                Parent = card, Text = "0", Position = UDim2.new(0, 10, 0, 6), Size = UDim2.new(1, -20, 0, 22),
-                Font = Tema.fonteForte, TextSize = 18, TextColor3 = CORES_RESULTADO[info[1]],
+                Parent = card, Text = "0", Position = UDim2.new(0, 14, 0, 7), Size = UDim2.new(1, -20, 0, 24),
+                Font = Tema.fonteForte, TextSize = 20, TextColor3 = CORES_RESULTADO[info[1]],
             })
             C.texto({
-                Parent = card, Text = info[2], Position = UDim2.new(0, 10, 0, 29), Size = UDim2.new(1, -20, 0, 14),
+                Parent = card, Text = info[2], Position = UDim2.new(0, 14, 0, 31), Size = UDim2.new(1, -20, 0, 14),
                 TextSize = 10, TextColor3 = Tema.suave,
             })
         end
-
-        local linhaHist = C.linha(pgHistorico, 2, 30)
         C.botao({
-            Parent = linhaHist, Texto = "📋  Copiar", Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11,
+            Parent = cardResumo, LayoutOrder = 10, Texto = "📋  Copiar", Size = UDim2.new(1, 0, 0, 30), TextSize = 11,
             OnClick = function()
                 local texto = Historico.texto()
                 print("===== SAMHUB: HISTÓRICO =====\n" .. texto)
@@ -365,16 +440,19 @@ return function(App)
             end,
         })
         C.botao({
-            Parent = linhaHist, Texto = "🗑  Limpar", Position = UDim2.new(0.5, 4, 0, 0),
-            Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11, OnClick = function() Historico.limpar() end,
+            Parent = cardResumo, LayoutOrder = 11, Texto = "🗑  Limpar", Size = UDim2.new(1, 0, 0, 30), TextSize = 11,
+            OnClick = function() Historico.limpar() end,
         })
 
-        local listaHist = C.criar("Frame", {
-            Parent = pgHistorico, LayoutOrder = 3, BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+        cardLista:FindFirstChildWhichIsA("UIListLayout"):Destroy()
+        C.cabecalho(cardLista, 0, "📜", "Últimos trades")
+        local listaHist = C.criar("ScrollingFrame", {
+            Parent = cardLista, BackgroundTransparency = 1, BorderSizePixel = 0, Position = UDim2.new(0, 0, 0, 32),
+            Size = UDim2.new(1, 0, 1, -32), ScrollBarThickness = 3, ScrollBarImageColor3 = Tema.rosa,
+            AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(),
         }, { C.lista(6) })
         local vazioHist = C.texto({
-            Parent = pgHistorico, LayoutOrder = 4, Size = UDim2.new(1, 0, 0, 60), TextSize = 11,
+            Parent = cardLista, Position = UDim2.new(0, 0, 0, 32), Size = UDim2.new(1, 0, 1, -32), TextSize = 11,
             TextColor3 = Tema.apagado, TextXAlignment = Enum.TextXAlignment.Center,
             Text = "Nenhum trade registrado ainda",
         })
@@ -388,30 +466,30 @@ return function(App)
                 cont[r.resultado] = (cont[r.resultado] or 0) + 1
                 local cor = CORES_RESULTADO[r.resultado] or Tema.apagado
                 local card = C.criar("Frame", {
-                    Parent = listaHist, LayoutOrder = i, BackgroundColor3 = Tema.painel,
-                    Size = UDim2.new(1, 0, 0, 44),
-                }, { C.canto(8) })
+                    Parent = listaHist, LayoutOrder = i, BackgroundColor3 = Tema.painel2,
+                    Size = UDim2.new(1, -6, 0, 44),
+                }, { C.canto(9) })
                 C.criar("Frame", {
                     Parent = card, BackgroundColor3 = cor, AnchorPoint = Vector2.new(0, 0.5),
                     Position = UDim2.new(0, 12, 0.5, 0), Size = UDim2.new(0, 8, 0, 8),
                 }, { C.canto(4) })
                 C.texto({
                     Parent = card, Text = "@" .. tostring(r.nick), Position = UDim2.new(0, 28, 0, 6),
-                    Size = UDim2.new(1, -110, 0, 16), Font = Tema.fonteMedia, TextTruncate = Enum.TextTruncate.AtEnd,
+                    Size = UDim2.new(1, -130, 0, 16), Font = Tema.fonteMedia, TextTruncate = Enum.TextTruncate.AtEnd,
                 })
                 C.texto({
-                    Parent = card, Text = r.detalhe ~= "" and r.detalhe or "-", Position = UDim2.new(0, 28, 0, 23),
-                    Size = UDim2.new(1, -110, 0, 14), TextSize = 10, TextColor3 = Tema.suave,
+                    Parent = card, Text = (r.detalhe ~= "" and r.detalhe) or "-", Position = UDim2.new(0, 28, 0, 23),
+                    Size = UDim2.new(1, -130, 0, 14), TextSize = 10, TextColor3 = Tema.suave,
                     TextTruncate = Enum.TextTruncate.AtEnd,
                 })
                 C.texto({
                     Parent = card, Text = string.upper(tostring(r.resultado)), AnchorPoint = Vector2.new(1, 0),
-                    Position = UDim2.new(1, -12, 0, 6), Size = UDim2.new(0, 80, 0, 16), Font = Tema.fonteForte,
+                    Position = UDim2.new(1, -12, 0, 6), Size = UDim2.new(0, 100, 0, 16), Font = Tema.fonteForte,
                     TextSize = 9, TextColor3 = cor, TextXAlignment = Enum.TextXAlignment.Right,
                 })
                 C.texto({
                     Parent = card, Text = tostring(r.hora), AnchorPoint = Vector2.new(1, 0),
-                    Position = UDim2.new(1, -12, 0, 23), Size = UDim2.new(0, 80, 0, 14), TextSize = 10,
+                    Position = UDim2.new(1, -12, 0, 23), Size = UDim2.new(0, 100, 0, 14), TextSize = 10,
                     TextColor3 = Tema.apagado, TextXAlignment = Enum.TextXAlignment.Right,
                 })
             end
@@ -420,80 +498,150 @@ return function(App)
         end
         maid:Add(Historico.Mudou:Connect(renderHistorico))
 
-        C.titulo(pgAjustes, 1, "Trade")
-        C.toggle({
-            Parent = pgAjustes, LayoutOrder = 2, Texto = "Recusar outras pessoas",
-            Descricao = "Desligado: só ignora trades de quem não é o comprador",
-            Valor = S.RECUSAR_OUTROS,
-            OnChange = function(v) S.RECUSAR_OUTROS = v; App.salvarAjustes() end,
+        local cardTrade, cardTempo = colunas(pgAjustes, 0.5)
+
+        C.cabecalho(cardTrade, 1, "🔄", "Trade")
+        local function toggle(ordem, chave, texto, descricao)
+            C.toggle({
+                Parent = cardTrade, LayoutOrder = ordem, Texto = texto, Descricao = descricao, Valor = S[chave],
+                OnChange = function(v)
+                    S[chave] = v
+                    App.salvarAjustes()
+                end,
+            })
+        end
+        toggle(2, "ACEITAR_PEDIDO", "Aceitar pedido do comprador", "Clica em Aceitar no aviso de trade dele")
+        toggle(3, "LISTAR_AO_ATIVAR", "Colocar à venda ao ativar", "Usa a caixa de correio sozinho")
+        toggle(4, "RECUSAR_OUTROS", "Recusar outras pessoas", "Desligado: só ignora")
+        toggle(5, "VERIFICAR_CASA", "Conferir casa no trade", "Só aceita se o nome da casa aparecer")
+
+        C.cabecalho(cardTempo, 1, "⏱", "Tempo")
+        local function stepper(ordem, chave, texto, minimo, maximo, passo)
+            C.stepper({
+                Parent = cardTempo, LayoutOrder = ordem, Texto = texto, Valor = S[chave],
+                Min = minimo, Max = maximo, Passo = passo, Sufixo = "s",
+                OnChange = function(v)
+                    S[chave] = v
+                    App.salvarAjustes()
+                end,
+            })
+        end
+        stepper(2, "TEMPO_ESTAVEL", "Oferta parada", 0, 5, 0.5)
+        stepper(3, "DELAY_MIN", "Atraso mín.", 0.2, 5, 0.1)
+        stepper(4, "DELAY_MAX", "Atraso máx.", 0.2, 8, 0.1)
+
+        C.cabecalho(cardTempo, 5, "⌨️", "Atalhos")
+        C.texto({
+            Parent = cardTempo, LayoutOrder = 6, Size = UDim2.new(1, 0, 0, 16), TextSize = 11,
+            TextColor3 = Tema.suave, Text = S.TECLA_MENU.Name .. "  →  esconder / mostrar",
         })
-        C.toggle({
-            Parent = pgAjustes, LayoutOrder = 3, Texto = "Aceitar pedido do comprador",
-            Descricao = "Clica em Aceitar no aviso \"X quer trocar\" só do comprador",
-            Valor = S.ACEITAR_PEDIDO,
-            OnChange = function(v) S.ACEITAR_PEDIDO = v; App.salvarAjustes() end,
+        C.texto({
+            Parent = cardTempo, LayoutOrder = 7, Size = UDim2.new(1, 0, 0, 16), TextSize = 11,
+            TextColor3 = Tema.suave, Text = "Logo  →  minimizar / abrir",
         })
-        C.toggle({
-            Parent = pgAjustes, LayoutOrder = 4, Texto = "Conferir casa no trade",
-            Descricao = "Só aceita se o nome da casa marcada aparecer no trade",
-            Valor = S.VERIFICAR_CASA,
-            OnChange = function(v) S.VERIFICAR_CASA = v; App.salvarAjustes() end,
-        })
-        C.stepper({
-            Parent = pgAjustes, LayoutOrder = 5, Texto = "Oferta parada por", Valor = S.TEMPO_ESTAVEL,
-            Min = 0, Max = 5, Passo = 0.5, Sufixo = "s",
-            OnChange = function(v) S.TEMPO_ESTAVEL = v; App.salvarAjustes() end,
-        })
-        C.stepper({
-            Parent = pgAjustes, LayoutOrder = 6, Texto = "Atraso mínimo", Valor = S.DELAY_MIN,
-            Min = 0.2, Max = 5, Passo = 0.1, Sufixo = "s",
-            OnChange = function(v) S.DELAY_MIN = v; App.salvarAjustes() end,
-        })
-        C.stepper({
-            Parent = pgAjustes, LayoutOrder = 7, Texto = "Atraso máximo", Valor = S.DELAY_MAX,
-            Min = 0.2, Max = 8, Passo = 0.1, Sufixo = "s",
-            OnChange = function(v) S.DELAY_MAX = v; App.salvarAjustes() end,
+        C.texto({
+            Parent = cardTempo, LayoutOrder = 8, Size = UDim2.new(1, 0, 0, 16), TextSize = 11,
+            TextColor3 = se(Utils.temArquivos, Tema.verde, Tema.amarelo),
+            Text = se(Utils.temArquivos, "●  Ajustes salvos em arquivo", "●  Executor não salva arquivos"),
         })
 
-        C.titulo(pgAjustes, 8, "Ferramentas")
-        local linhaMapa = C.linha(pgAjustes, 9, 34)
+        local cardExec, cardJogo = colunas(pgDiag, 0.5)
+        cardExec:FindFirstChildWhichIsA("UIListLayout").Padding = UDim.new(0, 6)
+        cardJogo:FindFirstChildWhichIsA("UIListLayout").Padding = UDim.new(0, 6)
+
+        C.cabecalho(cardExec, 1, "🧪", "Executor")
+        local dExecutor = C.info(cardExec, 2, "Executor")
+        local dVim = C.info(cardExec, 3, "Clique virtual")
+        local dConexoes = C.info(cardExec, 4, "getconnections")
+        local dFire = C.info(cardExec, 5, "firesignal")
+        local dArquivos = C.info(cardExec, 6, "Salvar arquivos")
+        local dMetodo = C.info(cardExec, 7, "Último clique")
+
+        local linhaMapa = C.linha(cardExec, 8, 30)
         C.botao({
-            Parent = linhaMapa, Texto = "🔄  Mapear trade", Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11,
+            Parent = linhaMapa, Texto = "Mapear trade", Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11,
             OnClick = function() Mapeador.mapearTrade() end,
         })
         C.botao({
-            Parent = linhaMapa, Texto = "🏠  Mapear casas", Position = UDim2.new(0.5, 4, 0, 0),
-            Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11,
-            OnClick = function() Mapeador.mapearCasas() end,
+            Parent = linhaMapa, Texto = "Mapear casas", Position = UDim2.new(0.5, 4, 0, 0),
+            Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11, OnClick = function() Mapeador.mapearCasas() end,
         })
         C.botao({
-            Parent = pgAjustes, LayoutOrder = 10, Texto = "🐞  Mapear tudo (textos da tela)",
-            Size = UDim2.new(1, 0, 0, 30), TextSize = 11,
+            Parent = cardExec, LayoutOrder = 9, Texto = "Mapear tudo", Size = UDim2.new(1, 0, 0, 30), TextSize = 11,
             OnClick = function() Mapeador.mapear() end,
         })
-        C.texto({
-            Parent = pgAjustes, LayoutOrder = 11, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
-            TextWrapped = true, TextSize = 10, TextColor3 = Tema.suave,
-            Text = "Mapear trade: com um trade ABERTO. Mapear casas: com MY HOMES aberto. "
-                .. "O resultado vai para o F9 e para a área de transferência.",
+
+        C.cabecalho(cardJogo, 1, "🎮", "Jogo")
+        local dJogo = C.info(cardJogo, 2, "Adopt Me")
+        local dJanela = C.info(cardJogo, 3, "Janela de trade")
+        local dParceiro = C.info(cardJogo, 4, "Parceiro lido")
+        local dAceitar = C.info(cardJogo, 5, "Botão Aceitar")
+        local dComprador = C.info(cardJogo, 6, "Comprador")
+        local dPedido = C.info(cardJogo, 7, "Pedido de trade")
+        local dLista = C.info(cardJogo, 8, "Lista MY HOMES")
+        local dCaixa = C.info(cardJogo, 9, "Caixa de correio")
+
+        local function atualizarDiagnostico(completo)
+            local r = Utils.recursos
+            dExecutor(Utils.nomeExecutor(), nil)
+            dVim(se(r.vim, "sim", "não"), r.vim)
+            dConexoes(se(r.getconnections, "sim", "não"), r.getconnections)
+            dFire(se(r.firesignal, "sim", "não"), r.firesignal)
+            dArquivos(se(r.arquivos, "sim", "não"), r.arquivos)
+            dMetodo(Utils.metodoClique or "nenhum ainda", se(Utils.metodoClique ~= nil, true, nil))
+
+            local ehAdopt = game.PlaceId == Config.PLACE_ADOPT_ME
+            dJogo(se(ehAdopt, "sim", "não (" .. game.PlaceId .. ")"), ehAdopt)
+
+            local d = Trade.diagnostico()
+            if d.janelaAberta then
+                dJanela("aberta", true)
+                dParceiro(d.parceiro or "?", d.parceiroOk)
+                dAceitar(d.botaoAceitar or "não achei", d.botaoAceitar ~= nil)
+            else
+                dJanela(se(d.appExiste, "fechada", "não encontrada"), se(d.appExiste, nil, false))
+                dParceiro("-", nil)
+                dAceitar("-", nil)
+            end
+            if d.comprador then
+                dComprador(d.comprador .. se(d.compradorNoServidor, " (no servidor)", " (fora)"), d.compradorNoServidor)
+            else
+                dComprador("não ativado", nil)
+            end
+            dPedido(se(d.pedidoNaTela, "na tela", "nenhum"), se(d.pedidoNaTela, true, nil))
+
+            if completo then
+                local painel = Scanner.acharPainel()
+                dLista(se(painel ~= nil, "achada", "abra MY HOMES"), se(painel ~= nil, true, nil))
+                local c = Casa.diagnostico()
+                if c.caixaCorreio then
+                    dCaixa(string.format("achada (%.0f studs)", c.distancia or 0), true)
+                else
+                    dCaixa("não achei", false)
+                end
+            end
+        end
+
+        C.botao({
+            Parent = cardJogo, LayoutOrder = 10, Texto = "🔄  Atualizar", Variante = "primario",
+            Size = UDim2.new(1, 0, 0, 30), TextSize = 11,
+            OnClick = function() atualizarDiagnostico(true) end,
         })
 
-        C.titulo(pgAjustes, 12, "Atalhos")
-        C.texto({
-            Parent = pgAjustes, LayoutOrder = 13, Size = UDim2.new(1, 0, 0, 16), TextSize = 11,
-            TextColor3 = Tema.suave, Text = S.TECLA_MENU.Name .. " → esconder / mostrar o menu",
-        })
-        C.texto({
-            Parent = pgAjustes, LayoutOrder = 14, Size = UDim2.new(1, 0, 0, 16), TextSize = 11,
-            TextColor3 = Utils.temArquivos and Tema.verde or Tema.amarelo,
-            Text = Utils.temArquivos and "● Ajustes e histórico salvos em arquivo"
-                or "● Seu executor não salva arquivos (só nesta sessão)",
-        })
+        local rodadaDiag = 0
+        aoAbrirAba[4] = function()
+            rodadaDiag += 1
+            local minha = rodadaDiag
+            pcall(atualizarDiagnostico, true)
+            while gui.Parent and abaAtual == 4 and rodadaDiag == minha do
+                task.wait(1)
+                if abaAtual == 4 and rodadaDiag == minha then pcall(atualizarDiagnostico, false) end
+            end
+        end
 
         local function mostrarStatus(texto, tipo)
-            local cor = Tema.status[tipo] or Tema.destaque
             textoStatus.Text = (Tema.icones[tipo] or "") .. "  " .. texto
-            C.tween(barraStatus, { BackgroundColor3 = cor })
+            C.tween(barraStatus, { BackgroundColor3 = Tema.status[tipo] or Tema.rosa })
         end
         maid:Add(Utils.StatusMudou:Connect(function(texto, tipo)
             mostrarStatus(texto, tipo)
@@ -501,7 +649,7 @@ return function(App)
         end))
 
         local SELOS = {
-            ativo = { "● ATIVO", Tema.verde },
+            ativo = { "● ATIVO", Tema.rosa },
             pausado = { "❚❚ PAUSADO", Tema.amarelo },
             inativo = { "INATIVO", Tema.apagado },
         }
@@ -509,24 +657,38 @@ return function(App)
             local estado = Trade.estado()
             textoSelo.Text = SELOS[estado][1]
             C.tween(selo, { BackgroundColor3 = SELOS[estado][2] })
+            textoComprador.Text = se(E.userIdAlvo ~= nil, "@" .. tostring(E.nickAlvo), "Nenhum comprador")
+            textoComprador.TextColor3 = se(E.userIdAlvo ~= nil, Tema.texto, Tema.suave)
 
             if not buscando then
-                botaoAtivar.Text = estado == "inativo" and "▶  Ativar" or "■  Desativar"
-                C.pintar(botaoAtivar, estado == "inativo" and Tema.verde or Tema.vermelho)
+                botaoAtivar.Text = se(estado == "inativo", "▶  Ativar", "■  Desativar")
+                C.pintar(botaoAtivar, se(estado == "inativo", Tema.rosa, Tema.vermelho))
             end
-            botaoPausa.Text = estado == "pausado" and "▶  Continuar" or "⏸  Pausar"
+            botaoPausa.Text = se(estado == "pausado", "▶  Continuar", "⏸  Pausar")
             caixaNick.TextEditable = estado == "inativo"
-            caixaNick.TextColor3 = estado == "inativo" and Tema.texto or Tema.suave
+            caixaNick.TextColor3 = se(estado == "inativo", Tema.texto, Tema.suave)
             renderCasas()
         end
         maid:Add(Utils.EstadoMudou:Connect(atualizarEstado))
 
+        Utils.esconderMenuSeCobrir = function(ponto)
+            if not janela.Visible then return nil end
+            local pos, tam = janela.AbsolutePosition, janela.AbsoluteSize
+            local dentro = ponto.X >= pos.X and ponto.X <= pos.X + tam.X and ponto.Y >= pos.Y and ponto.Y <= pos.Y + tam.Y
+            if not dentro then return nil end
+            janela.Visible = false
+            return function() janela.Visible = true end
+        end
+        maid:Add(function() Utils.esconderMenuSeCobrir = nil end)
+
         local minimizado = false
-        botaoMin.MouseButton1Click:Connect(function()
+        local function alternarMinimizar()
             minimizado = not minimizado
-            botaoMin.Text = minimizado and "+" or "–"
-            C.tween(janela, { Size = UDim2.new(0, Tema.largura, 0, minimizado and ALTURA_TOPO or Tema.altura) }, 0.25)
-        end)
+            local alvo = se(minimizado, UDim2.new(0, LAT, 0, ALTURA_MARCA), UDim2.new(0, W, 0, H))
+            C.tween(janela, { Size = alvo }, 0.25)
+        end
+        botaoMin.MouseButton1Click:Connect(alternarMinimizar)
+        logo.MouseButton1Click:Connect(alternarMinimizar)
 
         maid:Add(UIS.InputBegan:Connect(function(input, processado)
             if not processado and input.KeyCode == S.TECLA_MENU then
@@ -538,7 +700,7 @@ return function(App)
         mostrarStatus(E.status, E.statusTipo)
         atualizarEstado()
         renderHistorico()
-        C.tween(janela, { Size = UDim2.new(0, Tema.largura, 0, Tema.altura) }, 0.35)
+        C.tween(janela, { Size = UDim2.new(0, W, 0, H) }, 0.35)
 
         UI.gui = gui
         return gui

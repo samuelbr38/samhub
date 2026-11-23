@@ -4,6 +4,7 @@ return function(App)
     local GuiService = game:GetService("GuiService")
     local HttpService = game:GetService("HttpService")
     local okVIM, VIM = pcall(game.GetService, game, "VirtualInputManager")
+    if not okVIM then VIM = nil end
 
     local Utils = {}
 
@@ -69,7 +70,31 @@ return function(App)
         Utils.StatusMudou:Fire(texto, tipo)
     end
 
-    Utils.temArquivos = typeof(writefile) == "function" and typeof(readfile) == "function"
+    local function existe(nome)
+        local ok, valor = pcall(function()
+            return (typeof(getgenv) == "function" and getgenv()[nome]) or getfenv(0)[nome]
+        end)
+        return ok and typeof(valor) == "function"
+    end
+
+    Utils.recursos = {
+        getconnections = existe("getconnections"),
+        firesignal = existe("firesignal"),
+        fireproximityprompt = existe("fireproximityprompt"),
+        gethui = existe("gethui"),
+        arquivos = existe("writefile") and existe("readfile"),
+        clipboard = existe("setclipboard"),
+        vim = VIM ~= nil,
+    }
+    Utils.temArquivos = Utils.recursos.arquivos
+
+    function Utils.nomeExecutor()
+        if existe("identifyexecutor") then
+            local ok, nome, versao = pcall(identifyexecutor)
+            if ok and nome then return tostring(nome) .. (versao and (" " .. tostring(versao)) or "") end
+        end
+        return "desconhecido"
+    end
 
     function Utils.salvarJSON(arquivo, dados)
         if not Utils.temArquivos then return false end
@@ -80,18 +105,21 @@ return function(App)
 
     function Utils.lerJSON(arquivo)
         if not Utils.temArquivos then return nil end
-        if typeof(isfile) == "function" and not isfile(arquivo) then return nil end
+        if existe("isfile") and not isfile(arquivo) then return nil end
         local ok, dados = pcall(function()
             return HttpService:JSONDecode(readfile(arquivo))
         end)
         return ok and dados or nil
     end
 
+    function Utils.salvarTexto(arquivo, texto)
+        if not Utils.temArquivos then return false end
+        return (pcall(writefile, arquivo, texto))
+    end
+
     function Utils.copiar(texto)
-        if typeof(setclipboard) == "function" then
-            return (pcall(setclipboard, texto))
-        end
-        return false
+        if not Utils.recursos.clipboard then return false end
+        return (pcall(setclipboard, texto))
     end
 
     function Utils.esperar()
@@ -103,6 +131,29 @@ return function(App)
     function Utils.limpar(texto)
         texto = string.gsub(texto or "", "<[^>]->", "")
         return (string.gsub(texto, "^%s*(.-)%s*$", "%1"))
+    end
+
+    function Utils.escaparPadrao(texto)
+        return (string.gsub(texto, "[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
+    end
+
+    function Utils.escaparRich(texto)
+        texto = string.gsub(texto, "&", "&amp;")
+        texto = string.gsub(texto, "<", "&lt;")
+        texto = string.gsub(texto, ">", "&gt;")
+        return texto
+    end
+
+    function Utils.temPalavra(texto, palavra)
+        if palavra == "" then return false end
+        return string.find(texto, "%f[%w_]" .. Utils.escaparPadrao(palavra) .. "%f[^%w_]") ~= nil
+    end
+
+    function Utils.temAlguma(texto, lista)
+        for _, p in ipairs(lista) do
+            if string.find(texto, string.lower(p), 1, true) then return true end
+        end
+        return false
     end
 
     function Utils.visivel(obj)
@@ -131,23 +182,25 @@ return function(App)
         return true
     end
 
-    function Utils.escaparPadrao(texto)
-        return (string.gsub(texto, "[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
-    end
-
-    function Utils.escaparRich(texto)
-        texto = string.gsub(texto, "&", "&amp;")
-        texto = string.gsub(texto, "<", "&lt;")
-        texto = string.gsub(texto, ">", "&gt;")
-        return texto
-    end
-
-    local function listaTextos(t)
-        local lista = {}
-        for _, v in ipairs(type(t) == "table" and t or { t }) do
-            lista[string.lower(v)] = true
+    function Utils.assinatura(raiz)
+        local partes, visiveis = {}, 0
+        for _, d in ipairs(raiz:GetDescendants()) do
+            if d:IsA("GuiObject") and Utils.visivel(d) then
+                visiveis += 1
+                if d:IsA("TextLabel") or d:IsA("TextButton") then
+                    table.insert(partes, d.Text)
+                end
+            end
         end
-        return lista
+        return visiveis .. "#" .. table.concat(partes, "|")
+    end
+
+    local function minusculas(lista)
+        local r = {}
+        for _, v in ipairs(type(lista) == "table" and lista or { lista }) do
+            r[string.lower(v)] = true
+        end
+        return r
     end
 
     local function botaoDe(obj)
@@ -159,51 +212,129 @@ return function(App)
         return nil
     end
 
-    function Utils.acharBotao(pai, textos)
-        local alvos = listaTextos(textos)
+    function Utils.acharBotao(pai, textos, nomes)
+        local alvos = minusculas(textos or {})
         for _, d in ipairs(pai:GetDescendants()) do
-            if (d:IsA("TextButton") or d:IsA("TextLabel"))
-                and alvos[string.lower(Utils.limpar(d.Text))]
-                and Utils.visivel(d) then
+            if (d:IsA("TextButton") or d:IsA("TextLabel")) and alvos[string.lower(Utils.limpar(d.Text))] then
                 local botao = botaoDe(d)
-                if botao then return botao end
+                if botao and Utils.naTela(botao) then return botao end
+            end
+        end
+        if nomes then
+            for _, d in ipairs(pai:GetDescendants()) do
+                if d:IsA("GuiButton") and Utils.naTela(d) then
+                    local nome = string.lower(d.Name)
+                    if not string.find(nome, "^un") then
+                        for _, n in ipairs(nomes) do
+                            if string.find(nome, n, 1, true) then return d end
+                        end
+                    end
+                end
             end
         end
         return nil
     end
 
-    local function dispararSinal(sinal)
-        if typeof(getconnections) ~= "function" then return false end
-        local ok, conexoes = pcall(getconnections, sinal)
-        if not ok or not conexoes or #conexoes == 0 then return false end
-        for _, c in ipairs(conexoes) do
-            pcall(function() c:Fire() end)
-        end
-        return true
-    end
+    Utils.esconderMenuSeCobrir = nil
+    Utils.metodoClique = nil
 
-    local function cliqueFisico(botao)
-        if not okVIM or not VIM then return false end
+    local function centroDe(botao)
         local tela = botao:FindFirstAncestorWhichIsA("ScreenGui")
         local inset = (tela and tela.IgnoreGuiInset) and Vector2.zero or GuiService:GetGuiInset()
-        local centro = botao.AbsolutePosition + botao.AbsoluteSize / 2 + inset
-        return (pcall(function()
-            VIM:SendMouseButtonEvent(centro.X, centro.Y, 0, true, game, 0)
+        return botao.AbsolutePosition + botao.AbsoluteSize / 2 + inset
+    end
+
+    local function cliqueMouse(botao)
+        if not VIM then return false end
+        local p = centroDe(botao)
+        local restaurar = Utils.esconderMenuSeCobrir and Utils.esconderMenuSeCobrir(p)
+        local ok = pcall(function()
+            VIM:SendMouseMoveEvent(p.X, p.Y, game)
+            task.wait(0.03)
+            VIM:SendMouseButtonEvent(p.X, p.Y, 0, true, game, 0)
+            task.wait(0.06)
+            VIM:SendMouseButtonEvent(p.X, p.Y, 0, false, game, 0)
+        end)
+        if restaurar then task.delay(0.15, restaurar) end
+        return ok
+    end
+
+    local function cliqueSelecao(botao)
+        if not VIM then return false end
+        local anterior = GuiService.SelectedObject
+        local ok = pcall(function()
+            botao.Selectable = true
+            GuiService.SelectedObject = botao
+            task.wait(0.03)
+            VIM:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
             task.wait(0.05)
-            VIM:SendMouseButtonEvent(centro.X, centro.Y, 0, false, game, 0)
-        end))
+            VIM:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+        end)
+        task.delay(0.1, function()
+            pcall(function() GuiService.SelectedObject = anterior end)
+        end)
+        return ok
     end
 
-    function Utils.clicar(botao)
+    local function cliqueConexoes(botao)
+        if not Utils.recursos.getconnections then return false end
         for _, nome in ipairs({ "Activated", "MouseButton1Click", "MouseButton1Down" }) do
-            if dispararSinal(botao[nome]) then return true end
+            local ok, conexoes = pcall(getconnections, botao[nome])
+            if ok and conexoes and #conexoes > 0 then
+                for _, c in ipairs(conexoes) do
+                    pcall(function() c:Fire() end)
+                end
+                return true
+            end
         end
-        return cliqueFisico(botao)
+        return false
     end
 
-    function Utils.clicarPorTexto(pai, textos)
-        local botao = Utils.acharBotao(pai, textos)
-        return botao ~= nil and Utils.clicar(botao)
+    local function cliqueFiresignal(botao)
+        if not Utils.recursos.firesignal then return false end
+        return (pcall(firesignal, botao.MouseButton1Click))
+    end
+
+    local METODOS = {
+        { nome = "mouse", fn = cliqueMouse },
+        { nome = "seleção", fn = cliqueSelecao },
+        { nome = "conexões", fn = cliqueConexoes },
+        { nome = "firesignal", fn = cliqueFiresignal },
+    }
+
+    function Utils.clicar(botao, raiz)
+        raiz = raiz or botao:FindFirstAncestorWhichIsA("LayerCollector") or botao
+        local ordem = {}
+        for _, m in ipairs(METODOS) do
+            if m.nome == Utils.metodoClique then table.insert(ordem, 1, m) else table.insert(ordem, m) end
+        end
+
+        if not botao.Parent or not Utils.naTela(botao) then return false, nil end
+
+        for i, metodo in ipairs(ordem) do
+            if i > 1 and (not botao.Parent or not Utils.naTela(botao)) then
+                return true, Utils.metodoClique
+            end
+            local antes = Utils.assinatura(raiz)
+            if metodo.fn(botao) then
+                local t = 0
+                while t < 1.5 do
+                    task.wait(0.15)
+                    t += 0.15
+                    if not botao.Parent or not Utils.naTela(botao) or Utils.assinatura(raiz) ~= antes then
+                        Utils.metodoClique = metodo.nome
+                        return true, metodo.nome
+                    end
+                end
+            end
+        end
+        return false, nil
+    end
+
+    function Utils.clicarPorTexto(pai, textos, nomes)
+        local botao = Utils.acharBotao(pai, textos, nomes)
+        if not botao then return false end
+        return Utils.clicar(botao, pai)
     end
 
     return Utils

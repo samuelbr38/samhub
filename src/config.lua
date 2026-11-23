@@ -1,6 +1,7 @@
 local Config = {}
 
-Config.VERSAO = "4.1"
+Config.VERSAO = "5.0"
+Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
     NOME_JANELA_TRADE    = "TradeApp",
@@ -8,15 +9,24 @@ Config.SAMHUB = {
     NOME_OFERTA_PARCEIRO = nil,
 
     TEXTO_ACEITAR   = { "Accept", "Aceitar" },
+    NOMES_ACEITAR   = { "accept" },
     TEXTO_CONFIRMAR = { "Confirm", "Confirmar" },
+    NOMES_CONFIRMAR = { "confirm" },
     TEXTO_RECUSAR   = { "Decline", "Recusar", "Cancel", "Cancelar" },
+    NOMES_RECUSAR   = { "decline", "cancel" },
 
-    RECUSAR_OUTROS = true,
-    ACEITAR_PEDIDO = true,
-    VERIFICAR_CASA = false,
-    TEMPO_ESTAVEL  = 1.5,
-    DELAY_MIN      = 0.8,
-    DELAY_MAX      = 2.5,
+    PALAVRAS_CAIXA_CORREIO = { "mail", "correio", "trade house", "list for trade" },
+    TEXTO_LISTAR_CASA      = { "List for Trade", "List For Trade", "Trade House", "Listar para troca", "Trocar casa" },
+
+    PALAVRAS_PEDIDO = { "trade", "troca", "trocar", "negociar" },
+
+    RECUSAR_OUTROS    = true,
+    ACEITAR_PEDIDO    = true,
+    VERIFICAR_CASA    = false,
+    LISTAR_AO_ATIVAR  = true,
+    TEMPO_ESTAVEL     = 1.5,
+    DELAY_MIN         = 0.8,
+    DELAY_MAX         = 2.5,
 
     TIMEOUT_CONFIRMAR = 10,
 
@@ -30,7 +40,8 @@ Config.SAMHUB = {
 }
 
 Config.AJUSTES_SALVOS = {
-    "RECUSAR_OUTROS", "ACEITAR_PEDIDO", "VERIFICAR_CASA", "TEMPO_ESTAVEL", "DELAY_MIN", "DELAY_MAX",
+    "RECUSAR_OUTROS", "ACEITAR_PEDIDO", "VERIFICAR_CASA", "LISTAR_AO_ATIVAR",
+    "TEMPO_ESTAVEL", "DELAY_MIN", "DELAY_MAX",
 }
 
 Config.PLACEHOLDERS = {
@@ -54,21 +65,11 @@ Config.IGNORAR = {
 }
 
 Config.TIPOS = {
-    { "tiny home", "🏠 Tiny Home" },
-    { "mansion",   "🏰 Mansão" },
-    { "castle",    "🏯 Castelo" },
-    { "apartment", "🏢 Apartamento" },
-    { "iglu",      "❄️ Iglu" },
-    { "igloo",     "❄️ Iglu" },
-    { "farm",      "🌾 Fazenda" },
-    { "wooden",    "🪵 Madeira" },
-    { "queenslander", "🏡 Queenslander" },
-    { "treehouse", "🌳 Casa na Árvore" },
-    { "moon",      "🌙 Lua" },
-    { "ice cream", "🍦 Sorvete" },
-    { "toyshop",   "🧸 Loja de Brinquedos" },
-    { "ranch",     "🐎 Rancho" },
-    { "cottage",   "🏡 Chalé" },
+    { "tiny home",    "🏠" }, { "mansion",   "🏰" }, { "castle",  "🏯" },
+    { "apartment",    "🏢" }, { "iglu",      "❄️" }, { "igloo",   "❄️" },
+    { "farm",         "🌾" }, { "wooden",    "🪵" }, { "queenslander", "🏡" },
+    { "treehouse",    "🌳" }, { "moon",      "🌙" }, { "ice cream", "🍦" },
+    { "toyshop",      "🧸" }, { "ranch",     "🐎" }, { "cottage", "🏡" },
 }
 
 Config.Estado = {
