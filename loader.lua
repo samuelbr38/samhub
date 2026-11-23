@@ -1,1 +1,1 @@
-loadstring(game:HttpGet("COLE_O_LINK_RAW_DO_SEU_samhub.lua_AQUI"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/samuelbr38/samhub/refs/heads/main/samhub.lua"))()
