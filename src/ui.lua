@@ -180,7 +180,7 @@ return function(App)
             Parent = topo, Texto = "–", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -48, 0.5, 0),
         })
         C.icone({
-            Parent = topo, Texto = "✕", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 0),
+            Parent = topo, Texto = "X", AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -14, 0.5, 0),
             CorHover = Tema.vermelho, OnClick = function() App.fechar() end,
         })
 
@@ -615,7 +615,7 @@ return function(App)
                 dLista(se(painel ~= nil, "achada", "abra MY HOMES"), se(painel ~= nil, true, nil))
                 local c = Casa.diagnostico()
                 if c.caixaCorreio then
-                    dCaixa(string.format("achada (%.0f studs)", c.distancia or 0), true)
+                    dCaixa(string.format("%s a %.0f studs", c.tipo or "achada", c.distancia or 0), true)
                 else
                     dCaixa("não achei", false)
                 end
@@ -650,7 +650,7 @@ return function(App)
 
         local SELOS = {
             ativo = { "● ATIVO", Tema.rosa },
-            pausado = { "❚❚ PAUSADO", Tema.amarelo },
+            pausado = { "⏸ PAUSADO", Tema.amarelo },
             inativo = { "INATIVO", Tema.apagado },
         }
         local function atualizarEstado()
@@ -661,7 +661,7 @@ return function(App)
             textoComprador.TextColor3 = se(E.userIdAlvo ~= nil, Tema.texto, Tema.suave)
 
             if not buscando then
-                botaoAtivar.Text = se(estado == "inativo", "▶  Ativar", "■  Desativar")
+                botaoAtivar.Text = se(estado == "inativo", "▶  Ativar", "⏹  Desativar")
                 C.pintar(botaoAtivar, se(estado == "inativo", Tema.rosa, Tema.vermelho))
             end
             botaoPausa.Text = se(estado == "pausado", "▶  Continuar", "⏸  Pausar")
@@ -671,30 +671,104 @@ return function(App)
         end
         maid:Add(Utils.EstadoMudou:Connect(atualizarEstado))
 
-        Utils.esconderMenuSeCobrir = function(ponto)
-            if not janela.Visible then return nil end
-            local pos, tam = janela.AbsolutePosition, janela.AbsoluteSize
-            local dentro = ponto.X >= pos.X and ponto.X <= pos.X + tam.X and ponto.Y >= pos.Y and ponto.Y <= pos.Y + tam.Y
-            if not dentro then return nil end
-            janela.Visible = false
-            return function() janela.Visible = true end
-        end
-        maid:Add(function() Utils.esconderMenuSeCobrir = nil end)
+        local bolha = C.criar("TextButton", {
+            Parent = gui, Name = "Bolha", Text = "", AutoButtonColor = false, Visible = false,
+            BackgroundColor3 = Color3.new(1, 1, 1), AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.new(0, 56, 0.5, 0), Size = UDim2.new(0, 54, 0, 54),
+        }, {
+            C.criar("UICorner", { CornerRadius = UDim.new(1, 0) }),
+            C.gradiente(45),
+            C.criar("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 2, Transparency = 0.35 }),
+        })
+        C.texto({
+            Parent = bolha, Text = "S", Size = UDim2.new(1, 0, 1, 0), Font = Tema.fonteForte, TextSize = 24,
+            TextColor3 = Color3.new(1, 1, 1), TextXAlignment = Enum.TextXAlignment.Center,
+        })
+        local pontinho = C.criar("Frame", {
+            Parent = bolha, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.85, 0, 0.15, 0),
+            Size = UDim2.new(0, 14, 0, 14), BackgroundColor3 = Tema.apagado,
+        }, {
+            C.criar("UICorner", { CornerRadius = UDim.new(1, 0) }),
+            C.criar("UIStroke", { Color = Tema.fundo, Thickness = 2 }),
+        })
 
-        local minimizado = false
-        local function alternarMinimizar()
-            minimizado = not minimizado
-            local alvo = se(minimizado, UDim2.new(0, LAT, 0, ALTURA_MARCA), UDim2.new(0, W, 0, H))
-            C.tween(janela, { Size = alvo }, 0.25)
+        local function pintarPontinho()
+            pontinho.BackgroundColor3 = SELOS[Trade.estado()][2]
         end
-        botaoMin.MouseButton1Click:Connect(alternarMinimizar)
-        logo.MouseButton1Click:Connect(alternarMinimizar)
+        pintarPontinho()
+        maid:Add(Utils.EstadoMudou:Connect(pintarPontinho))
+
+        local function mostrarJanela()
+            bolha.Visible = false
+            janela.Visible = true
+            janela.Size = UDim2.new(0, W, 0, 0)
+            C.tween(janela, { Size = UDim2.new(0, W, 0, H) }, 0.25)
+        end
+
+        local function mostrarBolha()
+            janela.Visible = false
+            bolha.Visible = true
+            bolha.Size = UDim2.new(0, 0, 0, 0)
+            C.tween(bolha, { Size = UDim2.new(0, 54, 0, 54) }, 0.2)
+        end
+
+        local apertada, moveu, inicioPos, inicioToque = false, false, nil, nil
+        bolha.InputBegan:Connect(function(input)
+            local tipo = input.UserInputType
+            if tipo == Enum.UserInputType.MouseButton1 or tipo == Enum.UserInputType.Touch then
+                apertada, moveu, inicioPos, inicioToque = true, false, bolha.Position, input.Position
+                local conexao
+                conexao = input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        conexao:Disconnect()
+                        if apertada and not moveu then mostrarJanela() end
+                        apertada = false
+                    end
+                end)
+            end
+        end)
+        maid:Add(UIS.InputChanged:Connect(function(input)
+            local tipo = input.UserInputType
+            if apertada and (tipo == Enum.UserInputType.MouseMovement or tipo == Enum.UserInputType.Touch) then
+                local delta = input.Position - inicioToque
+                if math.abs(delta.X) + math.abs(delta.Y) > 6 then moveu = true end
+                if moveu then
+                    bolha.Position = UDim2.new(
+                        inicioPos.X.Scale, inicioPos.X.Offset + delta.X,
+                        inicioPos.Y.Scale, inicioPos.Y.Offset + delta.Y
+                    )
+                end
+            end
+        end))
+
+        botaoMin.MouseButton1Click:Connect(mostrarBolha)
+        logo.MouseButton1Click:Connect(mostrarBolha)
 
         maid:Add(UIS.InputBegan:Connect(function(input, processado)
             if not processado and input.KeyCode == S.TECLA_MENU then
-                janela.Visible = not janela.Visible
+                if janela.Visible then mostrarBolha() else mostrarJanela() end
             end
         end))
+
+        local function cobre(obj, ponto)
+            if not obj.Visible then return false end
+            local pos, tam = obj.AbsolutePosition, obj.AbsoluteSize
+            return ponto.X >= pos.X and ponto.X <= pos.X + tam.X and ponto.Y >= pos.Y and ponto.Y <= pos.Y + tam.Y
+        end
+        Utils.esconderMenuSeCobrir = function(ponto)
+            local escondidos = {}
+            for _, obj in ipairs({ janela, bolha }) do
+                if cobre(obj, ponto) then
+                    obj.Visible = false
+                    table.insert(escondidos, obj)
+                end
+            end
+            if #escondidos == 0 then return nil end
+            return function()
+                for _, obj in ipairs(escondidos) do obj.Visible = true end
+            end
+        end
+        maid:Add(function() Utils.esconderMenuSeCobrir = nil end)
 
         irPara(1)
         mostrarStatus(E.status, E.statusTipo)

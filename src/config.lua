@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "5.0"
+Config.VERSAO = "5.1"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -16,9 +16,11 @@ Config.SAMHUB = {
     NOMES_RECUSAR   = { "decline", "cancel" },
 
     PALAVRAS_CAIXA_CORREIO = { "mail", "correio", "trade house", "list for trade" },
-    TEXTO_LISTAR_CASA      = { "List for Trade", "List For Trade", "Trade House", "Listar para troca", "Trocar casa" },
+    TEXTO_LISTAR_CASA      = { "List for Trade", "Trade House", "Listar para troca", "Trocar casa" },
+    DISTANCIA_CAIXA_CORREIO = 60,
+    ESPERA_CAIXA_CORREIO    = 25,
 
-    PALAVRAS_PEDIDO = { "trade", "troca", "trocar", "negociar" },
+    PALAVRAS_PEDIDO = { "trade request", "sent you a trade", "trade", "troca", "trocar", "negociar" },
 
     RECUSAR_OUTROS    = true,
     ACEITAR_PEDIDO    = true,

@@ -141,21 +141,26 @@ return function(App)
         local comprador = E.userIdAlvo and Players:GetPlayerByUserId(E.userIdAlvo)
         if not comprador then return nil end
         local nomes = { string.lower(comprador.Name), string.lower(comprador.DisplayName) }
-        local app = appTrade()
+        local function citaComprador(texto)
+            return Utils.temPalavra(texto, nomes[1]) or Utils.temPalavra(texto, nomes[2])
+        end
 
+        local vistos = {}
         for _, d in ipairs(PlayerGui:GetDescendants()) do
-            if d:IsA("TextLabel") and not (app and d:IsDescendantOf(app)) and Utils.naTela(d) then
+            if (d:IsA("TextLabel") or d:IsA("TextButton")) and Utils.naTela(d) then
                 local t = string.lower(Utils.limpar(d.Text))
-                if Utils.temPalavra(t, nomes[1]) or Utils.temPalavra(t, nomes[2]) then
+                if citaComprador(t) or Utils.temAlguma(t, S.PALAVRAS_PEDIDO) then
                     local quadro = d.Parent
-                    for _ = 1, 6 do
-                        if not quadro or quadro:IsA("LayerCollector") then break end
+                    for _ = 1, 8 do
+                        if not quadro or quadro:IsA("LayerCollector") or vistos[quadro] then break end
+                        vistos[quadro] = true
                         local botao = Utils.acharBotao(quadro, S.TEXTO_ACEITAR, S.NOMES_ACEITAR)
                         if botao then
-                            local tudo = string.lower(Utils.assinatura(quadro))
-                            if Utils.temAlguma(tudo, S.PALAVRAS_PEDIDO) then
+                            local tudo = string.lower(Utils.textos(quadro))
+                            if citaComprador(tudo) and Utils.temAlguma(tudo, S.PALAVRAS_PEDIDO) then
                                 return botao, quadro, comprador
                             end
+                            break
                         end
                         quadro = quadro.Parent
                     end

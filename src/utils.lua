@@ -81,6 +81,7 @@ return function(App)
         getconnections = existe("getconnections"),
         firesignal = existe("firesignal"),
         fireproximityprompt = existe("fireproximityprompt"),
+        fireclickdetector = existe("fireclickdetector"),
         gethui = existe("gethui"),
         arquivos = existe("writefile") and existe("readfile"),
         clipboard = existe("setclipboard"),
@@ -133,6 +134,23 @@ return function(App)
         return (string.gsub(texto, "^%s*(.-)%s*$", "%1"))
     end
 
+    function Utils.normalizar(texto)
+        local t = string.lower(Utils.limpar(texto))
+        t = string.gsub(t, "%s*%(%w+%)$", "")
+        t = string.gsub(t, "%s+", " ")
+        return t
+    end
+
+    function Utils.textoDe(obj)
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+            return obj.Text
+        end
+        for _, d in ipairs(obj:GetDescendants()) do
+            if d:IsA("TextLabel") or d:IsA("TextButton") then return d.Text end
+        end
+        return ""
+    end
+
     function Utils.escaparPadrao(texto)
         return (string.gsub(texto, "[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
     end
@@ -182,42 +200,49 @@ return function(App)
         return true
     end
 
-    function Utils.assinatura(raiz)
-        local partes, visiveis = {}, 0
+    function Utils.textos(raiz)
+        local partes = {}
         for _, d in ipairs(raiz:GetDescendants()) do
-            if d:IsA("GuiObject") and Utils.visivel(d) then
-                visiveis += 1
-                if d:IsA("TextLabel") or d:IsA("TextButton") then
-                    table.insert(partes, d.Text)
-                end
+            if (d:IsA("TextLabel") or d:IsA("TextButton")) and Utils.visivel(d) then
+                table.insert(partes, Utils.limpar(d.Text))
             end
         end
-        return visiveis .. "#" .. table.concat(partes, "|")
+        return table.concat(partes, " | ")
     end
 
-    local function minusculas(lista)
+    function Utils.assinatura(raiz)
+        local visiveis = 0
+        for _, d in ipairs(raiz:GetDescendants()) do
+            if d:IsA("GuiObject") and Utils.visivel(d) then visiveis += 1 end
+        end
+        return visiveis .. "#" .. Utils.textos(raiz)
+    end
+
+    local function normalizados(lista)
         local r = {}
         for _, v in ipairs(type(lista) == "table" and lista or { lista }) do
-            r[string.lower(v)] = true
+            r[Utils.normalizar(v)] = true
         end
         return r
     end
 
-    local function botaoDe(obj)
-        while obj do
-            if obj:IsA("GuiButton") then return obj end
-            if obj:IsA("LayerCollector") then return nil end
-            obj = obj.Parent
+    local function alvoDoTexto(obj)
+        local atual = obj
+        while atual do
+            if atual:IsA("GuiButton") then return atual end
+            if atual:IsA("LayerCollector") then break end
+            atual = atual.Parent
         end
-        return nil
+        if obj.Parent and obj.Parent:IsA("GuiObject") then return obj.Parent end
+        return obj
     end
 
     function Utils.acharBotao(pai, textos, nomes)
-        local alvos = minusculas(textos or {})
+        local alvos = normalizados(textos or {})
         for _, d in ipairs(pai:GetDescendants()) do
-            if (d:IsA("TextButton") or d:IsA("TextLabel")) and alvos[string.lower(Utils.limpar(d.Text))] then
-                local botao = botaoDe(d)
-                if botao and Utils.naTela(botao) then return botao end
+            if (d:IsA("TextButton") or d:IsA("TextLabel")) and alvos[Utils.normalizar(d.Text)] and Utils.naTela(d) then
+                local botao = alvoDoTexto(d)
+                if Utils.naTela(botao) then return botao end
             end
         end
         if nomes then
@@ -244,23 +269,38 @@ return function(App)
         return botao.AbsolutePosition + botao.AbsoluteSize / 2 + inset
     end
 
-    local function cliqueMouse(botao)
+    function Utils.clicarNaTela(x, y)
         if not VIM then return false end
-        local p = centroDe(botao)
-        local restaurar = Utils.esconderMenuSeCobrir and Utils.esconderMenuSeCobrir(p)
+        local ponto = Vector2.new(x, y)
+        local restaurar = Utils.esconderMenuSeCobrir and Utils.esconderMenuSeCobrir(ponto)
+        if restaurar then task.wait(0.03) end
         local ok = pcall(function()
-            VIM:SendMouseMoveEvent(p.X, p.Y, game)
+            VIM:SendMouseMoveEvent(x, y, game)
             task.wait(0.03)
-            VIM:SendMouseButtonEvent(p.X, p.Y, 0, true, game, 0)
+            VIM:SendMouseButtonEvent(x, y, 0, true, game, 0)
             task.wait(0.06)
-            VIM:SendMouseButtonEvent(p.X, p.Y, 0, false, game, 0)
+            VIM:SendMouseButtonEvent(x, y, 0, false, game, 0)
         end)
         if restaurar then task.delay(0.15, restaurar) end
         return ok
     end
 
-    local function cliqueSelecao(botao)
+    function Utils.apertarTecla(tecla)
         if not VIM then return false end
+        return (pcall(function()
+            VIM:SendKeyEvent(true, tecla, false, game)
+            task.wait(0.05)
+            VIM:SendKeyEvent(false, tecla, false, game)
+        end))
+    end
+
+    local function cliqueMouse(botao)
+        local p = centroDe(botao)
+        return Utils.clicarNaTela(p.X, p.Y)
+    end
+
+    local function cliqueSelecao(botao)
+        if not VIM or not botao:IsA("GuiButton") then return false end
         local anterior = GuiService.SelectedObject
         local ok = pcall(function()
             botao.Selectable = true
@@ -277,7 +317,7 @@ return function(App)
     end
 
     local function cliqueConexoes(botao)
-        if not Utils.recursos.getconnections then return false end
+        if not Utils.recursos.getconnections or not botao:IsA("GuiButton") then return false end
         for _, nome in ipairs({ "Activated", "MouseButton1Click", "MouseButton1Down" }) do
             local ok, conexoes = pcall(getconnections, botao[nome])
             if ok and conexoes and #conexoes > 0 then
@@ -291,7 +331,7 @@ return function(App)
     end
 
     local function cliqueFiresignal(botao)
-        if not Utils.recursos.firesignal then return false end
+        if not Utils.recursos.firesignal or not botao:IsA("GuiButton") then return false end
         return (pcall(firesignal, botao.MouseButton1Click))
     end
 
