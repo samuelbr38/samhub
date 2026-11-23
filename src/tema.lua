@@ -19,9 +19,13 @@ local Tema = {
     suave    = Color3.fromRGB(184, 156, 180),
     apagado  = Color3.fromRGB(112, 90, 112),
 
+    rosaFundo  = Color3.fromRGB(46, 22, 42),
+    fundoFim   = Color3.fromRGB(24, 12, 27),
+
     fonte      = Enum.Font.Gotham,
     fonteMedia = Enum.Font.GothamMedium,
     fonteForte = Enum.Font.GothamBold,
+    fonteFofa  = Enum.Font.FredokaOne,
 
     raio          = 12,
     largura       = 700,
