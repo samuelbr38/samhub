@@ -290,6 +290,11 @@ return function(App)
             Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11,
             OnClick = function() task.spawn(Casa.conferirVenda) end,
         })
+        C.botao({
+            Parent = cardComprador, LayoutOrder = 7, Texto = "📍  Estou na caixa",
+            Size = UDim2.new(1, 0, 0, 30), TextSize = 11,
+            OnClick = function() task.spawn(Casa.salvarPosicaoCaixa) end,
+        })
 
         cardCasas:FindFirstChildWhichIsA("UIListLayout"):Destroy()
         C.cabecalho(cardCasas, 0, "🏠", "Suas casas")
@@ -574,9 +579,14 @@ return function(App)
             Parent = linhaMapa, Texto = "Mapear casas", Position = UDim2.new(0.5, 4, 0, 0),
             Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11, OnClick = function() Mapeador.mapearCasas() end,
         })
+        local linhaMapa2 = C.linha(cardExec, 9, 30)
         C.botao({
-            Parent = cardExec, LayoutOrder = 9, Texto = "Mapear tudo", Size = UDim2.new(1, 0, 0, 30), TextSize = 11,
-            OnClick = function() Mapeador.mapear() end,
+            Parent = linhaMapa2, Texto = "Mapear caixa", Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11,
+            OnClick = function() task.spawn(Casa.mapear) end,
+        })
+        C.botao({
+            Parent = linhaMapa2, Texto = "Mapear tudo", Position = UDim2.new(0.5, 4, 0, 0),
+            Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11, OnClick = function() Mapeador.mapear() end,
         })
 
         C.cabecalho(cardJogo, 1, "🎮", "Jogo")
@@ -624,10 +634,8 @@ return function(App)
                 local c = Casa.diagnostico()
                 if c.menuAberto then
                     dCaixa("menu aberto", true)
-                elseif c.caixaCorreio then
-                    dCaixa(string.format("%s a %.0f studs", c.tipo or "achada", c.distancia or 0), true)
-                elseif c.placa then
-                    dCaixa(string.format("placa a %.0f studs", c.distanciaPlaca or 0), true)
+                elseif c.destino then
+                    dCaixa(string.format("%s · %.0f studs", c.fonte or "?", c.distancia or 0), true)
                 else
                     dCaixa("não achei", false)
                 end

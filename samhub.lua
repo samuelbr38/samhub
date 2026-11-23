@@ -80,7 +80,7 @@ local function carregarAjustes()
     local dados = App.Utils.lerJSON(S.ARQUIVO_AJUSTES)
     if type(dados) ~= "table" then return end
     for _, chave in ipairs(App.Config.AJUSTES_SALVOS) do
-        if dados[chave] ~= nil and type(dados[chave]) == type(S[chave]) then
+        if dados[chave] ~= nil and (S[chave] == nil or type(dados[chave]) == type(S[chave])) then
             S[chave] = dados[chave]
         end
     end

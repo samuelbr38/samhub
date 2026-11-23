@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "5.2"
+Config.VERSAO = "5.3"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -27,6 +27,7 @@ Config.SAMHUB = {
     DISTANCIA_PERTO         = 6,
     ESPERA_CAIXA_CORREIO    = 25,
     TEMPO_MAX_ANDANDO       = 60,
+    OFFSET_CAIXA            = nil,
 
     PALAVRAS_PEDIDO = { "trade request", "sent you a trade", "trade", "troca", "trocar", "negociar" },
 
@@ -53,7 +54,7 @@ Config.SAMHUB = {
 
 Config.AJUSTES_SALVOS = {
     "RECUSAR_OUTROS", "ACEITAR_PEDIDO", "VERIFICAR_CASA", "LISTAR_AO_ATIVAR",
-    "ANDAR_ATE_CAIXA", "CONFERIR_VENDA",
+    "ANDAR_ATE_CAIXA", "CONFERIR_VENDA", "OFFSET_CAIXA",
     "TEMPO_ESTAVEL", "DELAY_MIN", "DELAY_MAX",
 }
 

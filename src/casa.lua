@@ -54,6 +54,26 @@ return function(App)
         return ((a - b) * SO_XZ).Magnitude
     end
 
+    local function cframeDe(obj)
+        if not obj then return nil end
+        if obj:IsA("BasePart") then return obj.CFrame end
+        if obj:IsA("Attachment") then return obj.WorldCFrame end
+        if obj:IsA("Model") then
+            local ok, cf = pcall(obj.GetPivot, obj)
+            return ok and cf or nil
+        end
+        return nil
+    end
+
+    local function terrenoDe(obj)
+        local terreno, atual = nil, obj
+        while atual and atual ~= workspace and atual ~= game do
+            if atual:IsA("Model") then terreno = atual end
+            atual = atual.Parent
+        end
+        return terreno
+    end
+
     function Casa.acharPlaca()
         local alvos = {}
         for _, padrao in ipairs(S.PADROES_PLACA_CASA) do
@@ -67,8 +87,18 @@ return function(App)
                     for _, alvo in ipairs(alvos) do
                         if string.find(texto, alvo, 1, true) then
                             local placa = d:FindFirstAncestorWhichIsA("BillboardGui")
-                            local pos = placa and (posicaoDe(placa.Adornee) or posicaoDe(placa.Parent))
-                            if pos then return pos end
+                            local peca = placa and (placa.Adornee or placa.Parent)
+                            local referencia = cframeDe(peca)
+                            if referencia then
+                                local posicao = referencia:PointToWorldSpace(placa.StudsOffsetWorldSpace)
+                                return {
+                                    posicao = posicao,
+                                    referencia = referencia,
+                                    peca = peca,
+                                    placa = placa,
+                                    terreno = terrenoDe(peca),
+                                }
+                            end
                         end
                     end
                 end
@@ -77,35 +107,81 @@ return function(App)
         return nil
     end
 
-    function Casa.acharCaixaCorreio(perto)
+    function Casa.acharCaixaCorreio(perto, dentro)
         local _, raiz = personagem()
         local origem = perto or (raiz and raiz.Position)
         if not origem then return nil end
         local melhor
 
-        local function considerar(tipo, objeto, posicao)
+        local function considerar(tipo, objeto, posicao, bonus)
             if not posicao then return end
             local distancia = (posicao - origem).Magnitude
-            if distancia <= S.DISTANCIA_CAIXA_CORREIO and (not melhor or distancia < melhor.distancia) then
-                melhor = { tipo = tipo, objeto = objeto, posicao = posicao, distancia = distancia }
+            local nota = distancia - (bonus or 0)
+            if distancia <= S.DISTANCIA_CAIXA_CORREIO and (not melhor or nota < melhor.nota) then
+                melhor = { tipo = tipo, objeto = objeto, posicao = posicao, distancia = distancia, nota = nota }
             end
         end
 
-        for _, d in ipairs(workspace:GetDescendants()) do
+        for _, d in ipairs((dentro or workspace):GetDescendants()) do
             if d:IsA("ProximityPrompt") then
                 local texto = string.lower(d.ObjectText .. " " .. d.ActionText) .. " " .. nomesAcima(d, 4)
                 if Utils.temAlguma(texto, S.PALAVRAS_CAIXA_CORREIO) then
-                    considerar("prompt", d, posicaoDe(d.Parent))
+                    considerar("prompt", d, posicaoDe(d.Parent), 20)
                 end
             elseif d:IsA("ClickDetector") then
                 if Utils.temAlguma(nomesAcima(d, 4), S.PALAVRAS_CAIXA_CORREIO) then
-                    considerar("clique", d, posicaoDe(d.Parent))
+                    considerar("clique", d, posicaoDe(d.Parent), 20)
                 end
-            elseif (d:IsA("Model") or d:IsA("BasePart")) and string.find(string.lower(d.Name), "mail", 1, true) then
-                considerar("peca", d, posicaoDe(d))
+            elseif d:IsA("Model") or d:IsA("BasePart") then
+                local nome = string.lower(d.Name)
+                if string.find(nome, "mailbox", 1, true) then
+                    considerar("peca", d, posicaoDe(d), 10)
+                elseif string.find(nome, "mail", 1, true) then
+                    considerar("peca", d, posicaoDe(d), 0)
+                end
             end
         end
         return melhor
+    end
+
+    local function posicaoSalva(placa)
+        local o = S.OFFSET_CAIXA
+        if not (placa and placa.referencia and type(o) == "table" and #o == 3) then return nil end
+        return placa.referencia:PointToWorldSpace(Vector3.new(o[1], o[2], o[3]))
+    end
+
+    function Casa.salvarPosicaoCaixa()
+        local _, raiz = personagem()
+        local placa = Casa.acharPlaca()
+        if not raiz or not placa then
+            Utils.setStatus("Não achei a placa da sua casa para salvar a posição", "erro")
+            return false
+        end
+        local o = placa.referencia:PointToObjectSpace(raiz.Position)
+        S.OFFSET_CAIXA = { o.X, o.Y, o.Z }
+        if App.salvarAjustes then App.salvarAjustes() end
+        Utils.setStatus("Posição da caixa de correio salva! Da próxima vez eu venho direto aqui.", "ok")
+        return true
+    end
+
+    function Casa.esquecerPosicaoCaixa()
+        S.OFFSET_CAIXA = nil
+        if App.salvarAjustes then App.salvarAjustes() end
+        Utils.setStatus("Posição salva apagada. Volto a procurar a caixa sozinho.", "info")
+    end
+
+    function Casa.destinoCaixa()
+        local placa = Casa.acharPlaca()
+        local salva = posicaoSalva(placa)
+        if salva then return salva, "posição salva", placa end
+        if placa then
+            local caixa = Casa.acharCaixaCorreio(placa.posicao, placa.terreno)
+            if caixa then return caixa.posicao, "caixa (" .. caixa.objeto.Name .. ")", placa, caixa end
+            return placa.posicao, "placa", placa
+        end
+        local caixa = Casa.acharCaixaCorreio()
+        if caixa then return caixa.posicao, "caixa (" .. caixa.objeto.Name .. ")", nil, caixa end
+        return nil
     end
 
     function Casa.andarAte(destino, perto)
@@ -159,16 +235,54 @@ return function(App)
     function Casa.irAteCaixa()
         local _, raiz = personagem()
         if not raiz then return false end
-        local placa = Casa.acharPlaca()
-        local caixa = Casa.acharCaixaCorreio(placa)
-        local destino = (caixa and caixa.posicao) or placa
+        local destino, fonte = Casa.destinoCaixa()
         if not destino then
             Utils.setStatus("Não achei a placa da sua casa nem a caixa de correio por perto", "aviso")
             return false
         end
         if distanciaXZ(raiz.Position, destino) <= S.DISTANCIA_PERTO then return true end
         if not S.ANDAR_ATE_CAIXA then return false end
+        print(string.format("[SAMHUB] indo para a caixa de correio por: %s (%.0f, %.0f, %.0f)", fonte, destino.X, destino.Y, destino.Z))
         return Casa.andarAte(destino)
+    end
+
+    function Casa.mapear()
+        local _, raiz = personagem()
+        local linhas = {}
+        local function add(...) table.insert(linhas, string.format(...)) end
+        local function v(p) return p and string.format("(%.1f, %.1f, %.1f)", p.X, p.Y, p.Z) or "nil" end
+
+        add("Você: %s", v(raiz and raiz.Position))
+        local placa = Casa.acharPlaca()
+        if placa then
+            add("Placa: %s [%s] presa em %s [%s]", placa.placa:GetFullName(), placa.placa.ClassName,
+                placa.peca:GetFullName(), placa.peca.ClassName)
+            add("  peça em %s · aparece em %s", v(placa.referencia.Position), v(placa.posicao))
+            add("  StudsOffset %s · StudsOffsetWorldSpace %s", tostring(placa.placa.StudsOffset), tostring(placa.placa.StudsOffsetWorldSpace))
+            add("  terreno: %s", placa.terreno and placa.terreno:GetFullName() or "nil")
+        else
+            add("Placa: não achei")
+        end
+        add("Posição salva: %s", S.OFFSET_CAIXA and table.concat(S.OFFSET_CAIXA, ", ") or "nenhuma")
+        local destino, fonte = Casa.destinoCaixa()
+        add("Destino escolhido: %s por %s", v(destino), tostring(fonte))
+
+        add("Candidatos a caixa de correio (até %d studs de você):", S.DISTANCIA_CAIXA_CORREIO)
+        for _, d in ipairs(workspace:GetDescendants()) do
+            local nome = string.lower(d.Name)
+            if (d:IsA("Model") or d:IsA("BasePart")) and string.find(nome, "mail", 1, true) then
+                local p = posicaoDe(d)
+                if p and raiz and (p - raiz.Position).Magnitude <= S.DISTANCIA_CAIXA_CORREIO then
+                    add("  %s [%s] em %s · %.0f studs de você", d:GetFullName(), d.ClassName, v(p), (p - raiz.Position).Magnitude)
+                end
+            end
+        end
+
+        local saida = "===== SAMHUB: MAPA DA CAIXA DE CORREIO =====\n" .. table.concat(linhas, "\n")
+        print(saida)
+        local copiou = Utils.copiar(saida)
+        Utils.salvarTexto("samhub_mapa_caixa.txt", saida)
+        Utils.setStatus("Mapa da caixa no F9" .. (copiou and " e copiado" or ""), "info")
     end
 
     local function botao(textos)
@@ -203,7 +317,8 @@ return function(App)
         local botaoE = botao({ "E" })
         if botaoE and Utils.clicar(botaoE) and esperar(menuAberto, 2) then return true end
 
-        local caixa = Casa.acharCaixaCorreio()
+        local destino, _, _, caixa = Casa.destinoCaixa()
+        caixa = caixa or (destino and { tipo = "peca", posicao = destino })
         if caixa and tocarNaCaixa(caixa) and esperar(menuAberto, 2.5) then return true end
 
         Utils.setStatus("Toque na caixa de correio (ou aperte E): eu continuo sozinho", "aviso")
@@ -341,15 +456,13 @@ return function(App)
     end
 
     function Casa.diagnostico()
-        local placa = Casa.acharPlaca()
-        local caixa = Casa.acharCaixaCorreio(placa)
+        local destino, fonte = Casa.destinoCaixa()
         local _, raiz = personagem()
         return {
-            placa = placa ~= nil,
-            distanciaPlaca = (placa and raiz) and distanciaXZ(raiz.Position, placa) or nil,
-            caixaCorreio = caixa ~= nil,
-            tipo = caixa and caixa.tipo or nil,
-            distancia = (caixa and raiz) and distanciaXZ(raiz.Position, caixa.posicao) or nil,
+            destino = destino ~= nil,
+            fonte = fonte,
+            distancia = (destino and raiz) and distanciaXZ(raiz.Position, destino) or nil,
+            salva = S.OFFSET_CAIXA ~= nil,
             menuAberto = menuAberto() ~= nil,
         }
     end
