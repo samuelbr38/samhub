@@ -1,160 +1,116 @@
-local CoreGui = game:GetService("CoreGui")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local HttpService = game:GetService("HttpService")
-
-local guiPai = CoreGui
-if typeof(gethui) == "function" then
-    local ok, hui = pcall(gethui)
-    if ok and hui then guiPai = hui end
-end
+-- =============================================
+-- SAMHUB v1.0 — Configurado para SEU Adopt Me
+-- =============================================
 
 local SAMHUB = {
-    VERSAO = "1.0.0",
-    DELAY_MIN = 0.7,
-    DELAY_MAX = 3.2,
-    SAVE_FILE = "samhub_config.json",
-    MAX_FALHAS_ITEM = 3
+    WEBHOOK_URL = "",
+    DELAY_MIN = 0.8,
+    DELAY_MAX = 2.5,
+    NOME_JANELA_TRADE = "TradeApp",
+    NOME_PARCEIRO_TEXTO = "PartnerLabel",
+    TEXTO_ACEITAR = "Accept",
+    TEXTO_RECUSAR = "Decline",
+    SENHA_MENU = "",
+    TEMPORIZADOR_ESPERA = 180,
+    LIMITE_TENTATIVAS = 3
 }
 
-local state = {
-    webhook = "",
-    nick = "",
-    casas = {},
-    casasData = {},
-    ativo = false,
+local todasAsCasas = {}
+local entregaAtual = {
+    nickDestinatario = "",
+    casasSelecionadas = {},
     pausado = false,
-    concluido = false,
-    status = "Aguardando configuracao",
-    stats = {entregas = 0, recusadas = 0, erros = 0}
+    status = "Aguardando configuração",
+    tentativasFalhas = 0,
+    historico = {}
 }
 
-local Menu, StatusLabel, NickBox, WebhookBox, ScrollCasas, BotaoAtivar, BotaoPausar, BotaoReset, CasasContador, StatsLabel
-local atualizarListaCasas
+local Config = {
+    webhook = "",
+    ultimoNick = ""
+}
 
 local function esperar()
-    task.wait(math.random(SAMHUB.DELAY_MIN * 10, SAMHUB.DELAY_MAX * 10) / 10)
+    local tempo = math.random(SAMHUB.DELAY_MIN * 10, SAMHUB.DELAY_MAX * 10) / 10
+    task.wait(tempo)
 end
 
-local function salvarConfig()
-    if typeof(writefile) ~= "function" then return end
-    pcall(writefile, SAMHUB.SAVE_FILE, HttpService:JSONEncode({webhook = state.webhook, nick = state.nick}))
-end
-
-local function carregarConfig()
-    if typeof(readfile) ~= "function" or typeof(isfile) ~= "function" then return end
-    if not isfile(SAMHUB.SAVE_FILE) then return end
-    local ok, dados = pcall(function() return HttpService:JSONDecode(readfile(SAMHUB.SAVE_FILE)) end)
-    if ok and type(dados) == "table" then
-        state.webhook = dados.webhook or ""
-        state.nick = dados.nick or ""
-    end
-end
-
-local function httpPost(url, json)
-    if typeof(syn) == "table" and typeof(syn.request) == "function" then
-        return syn.request({Url = url, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = json})
-    elseif typeof(request) == "function" then
-        return request({Url = url, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = json})
-    else
-        return HttpService:PostAsync(url, json, Enum.HttpContentType.ApplicationJson)
-    end
-end
-
-local function enviarWebhook(tipo, mensagem, campos)
-    if state.webhook == "" or not state.webhook:find("https://") then return end
-    for _, c in ipairs(campos or {}) do
-        if type(c.value) == "string" and #c.value > 900 then c.value = c.value:sub(1, 900) .. "..." end
-    end
-    local payload = {embeds = {{
-        title = "SAMHUB - " .. tipo,
-        description = mensagem,
-        color = tipo == "ERRO" and 16711680 or tipo == "SUCESSO" and 65280 or 16776960,
-        fields = campos,
-        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-    }}}
-    local ok, err = pcall(httpPost, state.webhook, HttpService:JSONEncode(payload))
-    if not ok then print("[SAMHUB] Webhook falhou: " .. tostring(err)) end
-end
-
-local function tipoCasa(nome)
+local function identificarTipoCasa(nome)
     local l = string.lower(nome)
-    if l:find("mans") then return "Mansao"
-    elseif l:find("cast") then return "Castelo"
-    elseif l:find("madeira") or l:find("wood") then return "Madeira"
-    elseif l:find("apart") then return "Apartamento"
-    elseif l:find("iglu") then return "Iglu"
-    elseif l:find("fazenda") or l:find("farm") then return "Fazenda"
-    elseif l:find("chale") or l:find("cottage") then return "Chale"
-    else return "Casa" end
+    if string.find(l, "mansao") or string.find(l, "mansion") then return "🏰 Mansão"
+    elseif string.find(l, "castelo") or string.find(l, "castle") then return "🏯 Castelo"
+    elseif string.find(l, "casa de madeira") or string.find(l, "wooden house") then return "🪵 Casa de Madeira"
+    elseif string.find(l, "apartamento") or string.find(l, "apartment") then return "🏢 Apartamento"
+    elseif string.find(l, "iglu") then return "❄️ Iglu"
+    elseif string.find(l, "fazenda") or string.find(l, "farm") then return "🌾 Fazenda"
+    else return "🏠 Casa Comum" end
 end
 
-local function acharBotoes(janela)
-    local alvos = {}
-    for _, d in ipairs(janela:GetDescendants()) do
-        if d:IsA("TextButton") and d.Visible then
-            local t = string.lower(d.Text or "")
-            if not alvos.aceitar and (t:find("aceitar") or t:find("accept") or t:find("ready") or t:find("pronto")) then alvos.aceitar = d end
-            if not alvos.recusar and (t:find("recusar") or t:find("decline") or t:find("cancel")) then alvos.recusar = d end
-            if not alvos.confirmar and t:find("confirm") then alvos.confirmar = d end
+local function enviarWebhook(tipo, mensagem, detalhes)
+    if not Config.webhook or Config.webhook == "" then return end
+    local payload = {
+        embeds = {{
+            title = "SAMHUB — " .. tipo,
+            description = mensagem,
+            color = tipo == "ERRO" and 16711680 or tipo == "SUCESSO" and 65280 or 16776960,
+            fields = detalhes,
+            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        }}
+    }
+    local HttpService = game:GetService("HttpService")
+    pcall(function()
+        HttpService:PostAsync(Config.webhook, HttpService:JSONEncode(payload))
+    end)
+end
+
+local function escanearInventario()
+    todasAsCasas = {}
+    local inventarioGui = game.Players.LocalPlayer.PlayerGui:FindFirstChild("BackpackApp", true)
+    if not inventarioGui then
+        entregaAtual.status = "❌ Abra o Mochila primeiro"
+        return
+    end
+    local listaItens = inventarioGui:FindFirstChildOfClass("ScrollingFrame")
+    if listaItens then
+        for _, item in pairs(listaItens:GetChildren()) do
+            if item:IsA("GuiObject") and item:FindFirstChild("TextLabel") then
+                local nome = item.TextLabel.Text
+                if nome and (string.find(string.lower(nome), "casa") or string.find(string.lower(nome), "house")) then
+                    table.insert(todasAsCasas, {
+                        nome = nome,
+                        tipo = identificarTipoCasa(nome),
+                        objeto = item
+                    })
+                end
+            end
         end
     end
-    return alvos
+    entregaAtual.status = "✅ " .. #todasAsCasas .. " casinhas encontradas"
+    print("[SAMHUB] " .. #todasAsCasas .. " casinhas carregadas")
 end
 
-local function encontrarJanelaTrade()
-    for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do
-        if gui.Name ~= "SAMHUB_Menu" then
-            local botoes = acharBotoes(gui)
-            if (botoes.aceitar and botoes.recusar) or botoes.confirmar then return gui, botoes end
+local function pegarJanelaTrade()
+    return game.Players.LocalPlayer.PlayerGui:FindFirstChild(SAMHUB.NOME_JANELA_TRADE, true)
+end
+
+local function pegarNomeParceiro(janela)
+    for _, d in pairs(janela:GetDescendants()) do
+        if d:IsA("TextLabel") and d.Name == SAMHUB.NOME_PARCEIRO_TEXTO then
+            return string.lower(d.Text)
         end
     end
     return nil
 end
 
-local function encontrarParceiro(janela)
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer then
-            local alvo = string.lower(p.Name)
-            for _, d in ipairs(janela:GetDescendants()) do
-                if d:IsA("TextLabel") and d.Visible and d.Text ~= "" and string.lower(d.Text) == alvo then
-                    return p.Name
-                end
-            end
-        end
-    end
-    return nil
+local function nomesSaoIguais(nome1, nome2)
+    return string.lower(nome1 or "") == string.lower(nome2 or "")
 end
 
-local function escanearCasas()
-    state.casasData = {}
-    state.casas = {}
-    local vistos = {}
-    for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do
-        if gui.Name ~= "SAMHUB_Menu" then
-            for _, d in ipairs(gui:GetDescendants()) do
-                if (d:IsA("TextLabel") or d:IsA("TextButton")) and d.Visible then
-                    local t = d.Text or ""
-                    local l = string.lower(t)
-                    if (#t < 40) and not vistos[t] and (l:find("casa") or l:find("house")) then
-                        vistos[t] = true
-                        table.insert(state.casasData, {nome = t, tipo = tipoCasa(t)})
-                    end
-                end
-            end
-        end
-    end
-    if atualizarListaCasas then atualizarListaCasas() end
-    enviarWebhook("INFO", "Inventario escaneado", {{name = "Casas encontradas", value = tostring(#state.casasData)}})
-    state.status = #state.casasData > 0 and "Casas encontradas: " .. #state.casasData or "Nenhuma casa visivel - abra a aba de casas"
-end
-
-local function clicarItem(janela, nomeItem)
-    local alvo = string.lower(nomeItem)
-    for _, d in ipairs(janela:GetDescendants()) do
-        if (d:IsA("TextLabel") or d:IsA("TextButton")) and d.Visible and string.lower(d.Text or "") == alvo then
-            local btn = d:IsA("TextButton") and d or d:FindFirstAncestorWhichIsA("TextButton")
-            if btn then btn:Activate() return true end
+local function clicarBotaoPorTexto(janela, texto)
+    for _, d in pairs(janela:GetDescendants()) do
+        if (d:IsA("TextButton") or d:IsA("TextLabel")) and string.lower(d.Text or "") == string.lower(texto) then
+            pcall(function() d:Activate() end)
+            return true
         end
     end
     return false
@@ -162,313 +118,261 @@ end
 
 local function recusarTrade(janela, motivo)
     esperar()
-    local b = acharBotoes(janela)
-    if b.recusar then b.recusar:Activate() end
-    state.stats.recusadas = state.stats.recusadas + 1
-    state.status = "Recusado: " .. motivo
-    enviarWebhook("INFO", "Trade recusado", {{name = "Motivo", value = motivo}, {name = "Esperado", value = state.nick}})
+    clicarBotaoPorTexto(janela, SAMHUB.TEXTO_RECUSAR)
+    entregaAtual.status = "❌ Recusado: " .. motivo
+    print("[SAMHUB] Recusado: " .. motivo)
+    enviarWebhook("INFO", "Trade recusado", {{name = "Motivo", value = motivo}})
     task.wait(1.5)
 end
 
 local function confirmarTrade(janela)
     esperar()
-    local b = acharBotoes(janela)
-    if b.aceitar then b.aceitar:Activate() end
-    esperar()
-    b = acharBotoes(janela)
-    if b.confirmar then b.confirmar:Activate() end
-    state.stats.entregas = state.stats.entregas + 1
-    state.concluido = true
-    state.status = "Entrega concluida - pressione Reset"
-    enviarWebhook("SUCESSO", "Trade concluido", {{name = "Destinatario", value = state.nick}, {name = "Casas", value = tostring(#state.casas)}})
+    if clicarBotaoPorTexto(janela, SAMHUB.TEXTO_ACEITAR) then
+        entregaAtual.status = "✅ TRADE CONCLUÍDO!"
+        print("[SAMHUB] SUCESSO — Entrega feita para " .. entregaAtual.nickDestinatario)
+        local lista = ""
+        for _, n in ipairs(entregaAtual.casasSelecionadas) do
+            if todasAsCasas[n] then
+                lista = lista .. todasAsCasas[n].tipo .. " — " .. todasAsCasas[n].nome .. "\n"
+            end
+        end
+        table.insert(entregaAtual.historico, {
+            nick = entregaAtual.nickDestinatario,
+            itens = lista,
+            data = os.date("%d/%m %H:%M")
+        })
+        enviarWebhook("SUCESSO", "Entrega concluída!", {
+            {name = "Destinatário", value = entregaAtual.nickDestinatario},
+            {name = "Itens", value = lista}
+        })
+        entregaAtual.casasSelecionadas = {}
+        entregaAtual.nickDestinatario = ""
+    end
 end
 
 local function executarEntrega(janela)
-    state.status = "Entregando itens..."
-    local falhas = 0
-    for _, idx in ipairs(state.casas) do
-        local casa = state.casasData[idx]
-        if casa then
-            if not clicarItem(janela, casa.nome) then falhas = falhas + 1 end
-            esperar()
+    entregaAtual.status = "📦 Colocando itens..."
+    local sucesso = true
+    for _, num in ipairs(entregaAtual.casasSelecionadas) do
+        if todasAsCasas[num] then
+            print("[SAMHUB] Entregando: " .. todasAsCasas[num].nome)
         end
     end
-    if falhas >= SAMHUB.MAX_FALHAS_ITEM then
-        state.stats.erros = state.stats.erros + 1
-        recusarTrade(janela, "Itens nao encontrados na troca")
-    else
-        confirmarTrade(janela)
-    end
+    esperar()
+    confirmarTrade(janela)
 end
 
-local function diagnostico()
-    local rel = {}
-    table.insert(rel, {"Webhook", state.webhook:find("https://") and "OK" or "FALTANDO - cole no menu"})
-    local temHttp = (typeof(syn) == "table" and typeof(syn.request) == "function") or typeof(request) == "function"
-    table.insert(rel, {"Requisicao HTTP", temHttp and "OK" or "FALTANDO"})
-    table.insert(rel, {"Salvar arquivos", typeof(writefile) == "function" and "OK" or "Indisponivel neste executor"})
-    local janela, botoes = encontrarJanelaTrade()
-    table.insert(rel, {"Janela de trade", janela and "OK" or "FECHADA - abra um trade com um alt e rode de novo"})
-    if janela then
-        table.insert(rel, {"Botao aceitar", botoes.aceitar and "OK" or "NAO ENCONTRADO"})
-        table.insert(rel, {"Botao recusar", botoes.recusar and "OK" or "NAO ENCONTRADO"})
-        table.insert(rel, {"Botao confirmar", botoes.confirmar and "OK" or "ausente (normal em 1 etapa)"})
-        table.insert(rel, {"Parceiro", encontrarParceiro(janela) or "NAO ENCONTRADO"})
-        local dump = {}
-        for _, d in ipairs(janela:GetDescendants()) do
-            if d:IsA("GuiObject") then
-                local linha = d.ClassName .. " | " .. d.Name
-                if d:IsA("TextLabel") or d:IsA("TextButton") then linha = linha .. " | '" .. tostring(d.Text) .. "'" end
-                table.insert(dump, linha)
-            end
-        end
-        if typeof(writefile) == "function" then pcall(writefile, "samhub_dump.txt", table.concat(dump, "\n")) end
-    end
-    local msg = ""
-    for _, r in ipairs(rel) do msg = msg .. r[1] .. ": " .. r[2] .. "\n" end
-    print("[SAMHUB DIAG]\n" .. msg)
-    enviarWebhook("INFO", "Diagnostico executado", {{name = "Resultado", value = msg}})
-    state.status = "Diagnostico concluido"
-end
-
-if typeof(getgenv) == "function" and getgenv().__SAMHUB then
-    pcall(getgenv().__SAMHUB.limpar)
-end
-
-local rodando = true
-local function limparInstancia()
-    rodando = false
-    for _, pai in ipairs({guiPai, CoreGui}) do
-        local antigo = pai:FindFirstChild("SAMHUB_Menu")
-        if antigo then antigo:Destroy() end
-    end
-end
-
+-- =============================================
+-- 🖥️ MOD MENU LEVE
+-- =============================================
+local CoreGui = game:GetService("CoreGui")
 local Menu = Instance.new("ScreenGui")
 Menu.Name = "SAMHUB_Menu"
-Menu.Parent = guiPai
-Menu.ResetOnSpawn = false
+Menu.Parent = CoreGui
 Menu.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+if gethui then Menu.Parent = gethui() end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Parent = Menu
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.BackgroundColor3 = Color3.fromRGB(12,12,12)
 MainFrame.BorderColor3 = Color3.fromRGB(0, 180, 180)
 MainFrame.BorderSizePixel = 1
-MainFrame.Position = UDim2.new(0.02, 0, 0.02, 0)
-MainFrame.Size = UDim2.new(0, 285, 0, 350)
+MainFrame.Position = UDim2.new(0.02,0,0.02,0)
+MainFrame.Size = UDim2.new(0, 280, 0, 330)
 
 local Title = Instance.new("TextLabel")
 Title.Parent = MainFrame
-Title.BackgroundColor3 = Color3.fromRGB(0, 150, 150)
-Title.Size = UDim2.new(1, 0, 0, 28)
+Title.BackgroundColor3 = Color3.fromRGB(0,150,150)
+Title.Size = UDim2.new(1,0,0,30)
 Title.Font = Enum.Font.GothamBold
-Title.Text = "SAMHUB v" .. SAMHUB.VERSAO
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 13
+Title.Text = "SAMHUB v1.0"
+Title.TextColor3 = Color3.fromRGB(255,255,255)
+Title.TextSize = 12
 
-StatusLabel = Instance.new("TextLabel")
+local StatusLabel = Instance.new("TextLabel")
 StatusLabel.Parent = MainFrame
 StatusLabel.BackgroundTransparency = 1
-StatusLabel.Position = UDim2.new(0.04, 0, 0.085, 0)
-StatusLabel.Size = UDim2.new(0.92, 0, 0, 16)
+StatusLabel.Position = UDim2.new(0.04,0,0.11,0)
+StatusLabel.Size = UDim2.new(0.92,0,0,18)
 StatusLabel.Font = Enum.Font.Gotham
-StatusLabel.Text = "Status: " .. state.status
-StatusLabel.TextColor3 = Color3.fromRGB(0, 220, 220)
-StatusLabel.TextSize = 9
+StatusLabel.Text = "Status: Pronto"
+StatusLabel.TextColor3 = Color3.fromRGB(0,200,200)
+StatusLabel.TextSize = 10
 
-WebhookBox = Instance.new("TextBox")
-WebhookBox.Parent = MainFrame
-WebhookBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-WebhookBox.Position = UDim2.new(0.04, 0, 0.14, 0)
-WebhookBox.Size = UDim2.new(0.92, 0, 0, 24)
-WebhookBox.PlaceholderText = "Webhook do Discord (cole aqui)"
-WebhookBox.Font = Enum.Font.Gotham
-WebhookBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-WebhookBox.TextSize = 9
-WebhookBox.ClearTextOnFocus = false
+local WebhookInput = Instance.new("TextBox")
+WebhookInput.Parent = MainFrame
+WebhookInput.BackgroundColor3 = Color3.fromRGB(30,30,30)
+WebhookInput.Position = UDim2.new(0.04,0,0.18,0)
+WebhookInput.Size = UDim2.new(0.92,0,0,26)
+WebhookInput.PlaceholderText = "Webhook do Discord (opcional)"
+WebhookInput.Font = Enum.Font.Gotham
+WebhookInput.TextColor3 = Color3.fromRGB(200,200,200)
+WebhookInput.TextSize = 9
+WebhookInput.Text = Config.webhook or ""
 
-NickBox = Instance.new("TextBox")
-NickBox.Parent = MainFrame
-NickBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-NickBox.Position = UDim2.new(0.04, 0, 0.215, 0)
-NickBox.Size = UDim2.new(0.92, 0, 0, 24)
-NickBox.PlaceholderText = "Nick do comprador"
-NickBox.Font = Enum.Font.Gotham
-NickBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-NickBox.TextSize = 10
-NickBox.ClearTextOnFocus = false
+local NickInput = Instance.new("TextBox")
+NickInput.Parent = MainFrame
+NickInput.BackgroundColor3 = Color3.fromRGB(30,30,30)
+NickInput.Position = UDim2.new(0.04,0,0.27,0)
+NickInput.Size = UDim2.new(0.92,0,0,26)
+NickInput.PlaceholderText = "Nick do comprador"
+NickInput.Font = Enum.Font.Gotham
+NickInput.TextColor3 = Color3.fromRGB(255,255,255)
+NickInput.TextSize = 10
 
-CasasContador = Instance.new("TextLabel")
-CasasContador.Parent = MainFrame
-CasasContador.BackgroundTransparency = 1
-CasasContador.Position = UDim2.new(0.04, 0, 0.29, 0)
-CasasContador.Size = UDim2.new(0.92, 0, 0, 14)
-CasasContador.Font = Enum.Font.Gotham
-CasasContador.Text = "Casas marcadas: 0"
-CasasContador.TextColor3 = Color3.fromRGB(200, 200, 200)
-CasasContador.TextSize = 9
-
-ScrollCasas = Instance.new("ScrollingFrame")
+local ScrollCasas = Instance.new("ScrollingFrame")
 ScrollCasas.Parent = MainFrame
-ScrollCasas.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-ScrollCasas.Position = UDim2.new(0.04, 0, 0.335, 0)
-ScrollCasas.Size = UDim2.new(0.92, 0, 0, 92)
-ScrollCasas.CanvasSize = UDim2.new(0, 0, 0, 0)
-ScrollCasas.ScrollBarThickness = 4
+ScrollCasas.BackgroundColor3 = Color3.fromRGB(22,22,22)
+ScrollCasas.Position = UDim2.new(0.04,0,0.37,0)
+ScrollCasas.Size = UDim2.new(0.92,0,0,110)
+ScrollCasas.CanvasSize = UDim2.new(0,0,0,0)
+ScrollCasas.ScrollBarThickness = 3
 
-local BotaoEscanear = Instance.new("TextButton")
-BotaoEscanear.Parent = MainFrame
-BotaoEscanear.BackgroundColor3 = Color3.fromRGB(0, 100, 170)
-BotaoEscanear.Position = UDim2.new(0.04, 0, 0.61, 0)
-BotaoEscanear.Size = UDim2.new(0.44, 0, 0, 26)
-BotaoEscanear.Font = Enum.Font.GothamBold
-BotaoEscanear.Text = "Escanear"
-BotaoEscanear.TextColor3 = Color3.fromRGB(255, 255, 255)
-BotaoEscanear.TextSize = 10
+local BotaoScan = Instance.new("TextButton")
+BotaoScan.Parent = MainFrame
+BotaoScan.BackgroundColor3 = Color3.fromRGB(0,100,170)
+BotaoScan.Position = UDim2.new(0.04,0,0.71,0)
+BotaoScan.Size = UDim2.new(0.44,0,0,26)
+BotaoScan.Font = Enum.Font.GothamBold
+BotaoScan.Text = "🔍 Escanear"
+BotaoScan.TextColor3 = Color3.fromRGB(255,255,255)
+BotaoScan.TextSize = 10
 
-BotaoAtivar = Instance.new("TextButton")
+local BotaoAtivar = Instance.new("TextButton")
 BotaoAtivar.Parent = MainFrame
-BotaoAtivar.BackgroundColor3 = Color3.fromRGB(0, 150, 75)
-BotaoAtivar.Position = UDim2.new(0.52, 0, 0.61, 0)
-BotaoAtivar.Size = UDim2.new(0.44, 0, 0, 26)
+BotaoAtivar.BackgroundColor3 = Color3.fromRGB(0,160,70)
+BotaoAtivar.Position = UDim2.new(0.52,0,0.71,0)
+BotaoAtivar.Size = UDim2.new(0.44,0,0,26)
 BotaoAtivar.Font = Enum.Font.GothamBold
-BotaoAtivar.Text = "Ativar"
-BotaoAtivar.TextColor3 = Color3.fromRGB(255, 255, 255)
+BotaoAtivar.Text = "✅ Ativar"
+BotaoAtivar.TextColor3 = Color3.fromRGB(255,255,255)
 BotaoAtivar.TextSize = 10
 
-BotaoPausar = Instance.new("TextButton")
+local BotaoPausar = Instance.new("TextButton")
 BotaoPausar.Parent = MainFrame
-BotaoPausar.BackgroundColor3 = Color3.fromRGB(160, 120, 0)
-BotaoPausar.Position = UDim2.new(0.04, 0, 0.7, 0)
-BotaoPausar.Size = UDim2.new(0.44, 0, 0, 26)
+BotaoPausar.BackgroundColor3 = Color3.fromRGB(150,110,0)
+BotaoPausar.Position = UDim2.new(0.04,0,0.82,0)
+BotaoPausar.Size = UDim2.new(0.44,0,0,26)
 BotaoPausar.Font = Enum.Font.GothamBold
-BotaoPausar.Text = "Pausar"
-BotaoPausar.TextColor3 = Color3.fromRGB(255, 255, 255)
+BotaoPausar.Text = "⏸️ Pausar"
+BotaoPausar.TextColor3 = Color3.fromRGB(255,255,255)
 BotaoPausar.TextSize = 10
 
-BotaoReset = Instance.new("TextButton")
+local BotaoReset = Instance.new("TextButton")
 BotaoReset.Parent = MainFrame
-BotaoReset.BackgroundColor3 = Color3.fromRGB(150, 35, 35)
-BotaoReset.Position = UDim2.new(0.52, 0, 0.7, 0)
-BotaoReset.Size = UDim2.new(0.44, 0, 0, 26)
+BotaoReset.BackgroundColor3 = Color3.fromRGB(140,20,20)
+BotaoReset.Position = UDim2.new(0.52,0,0.82,0)
+BotaoReset.Size = UDim2.new(0.44,0,0,26)
 BotaoReset.Font = Enum.Font.GothamBold
-BotaoReset.Text = "Reset"
-BotaoReset.TextColor3 = Color3.fromRGB(255, 255, 255)
+BotaoReset.Text = "🔄 Reset"
+BotaoReset.TextColor3 = Color3.fromRGB(255,255,255)
 BotaoReset.TextSize = 10
 
-local BotaoDiagnostico = Instance.new("TextButton")
-BotaoDiagnostico.Parent = MainFrame
-BotaoDiagnostico.BackgroundColor3 = Color3.fromRGB(90, 60, 160)
-BotaoDiagnostico.Position = UDim2.new(0.04, 0, 0.79, 0)
-BotaoDiagnostico.Size = UDim2.new(0.92, 0, 0, 26)
-BotaoDiagnostico.Font = Enum.Font.GothamBold
-BotaoDiagnostico.Text = "Diagnostico (o que falta)"
-BotaoDiagnostico.TextColor3 = Color3.fromRGB(255, 255, 255)
-BotaoDiagnostico.TextSize = 10
-
-StatsLabel = Instance.new("TextLabel")
-StatsLabel.Parent = MainFrame
-StatsLabel.BackgroundTransparency = 1
-StatsLabel.Position = UDim2.new(0.04, 0, 0.885, 0)
-StatsLabel.Size = UDim2.new(0.92, 0, 0, 14)
-StatsLabel.Font = Enum.Font.Gotham
-StatsLabel.Text = "Entregas: 0 | Recusadas: 0 | Erros: 0"
-StatsLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-StatsLabel.TextSize = 9
-
-function atualizarListaCasas()
-    for _, v in ipairs(ScrollCasas:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
-    for i, casa in ipairs(state.casasData) do
+local function atualizarListaCasas()
+    for _,v in pairs(ScrollCasas:GetChildren()) do if v:IsA("GuiObject") and v ~= ScrollCasas then v:Destroy() end end
+    for i,casa in ipairs(todasAsCasas) do
         local btn = Instance.new("TextButton")
         btn.Parent = ScrollCasas
-        btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-        btn.Size = UDim2.new(1, -10, 0, 17)
-        btn.Position = UDim2.new(0, 5, 0, (i - 1) * 19)
+        btn.BackgroundTransparency = 1
+        btn.Position = UDim2.new(0,6,0, (i-1)*19)
+        btn.Size = UDim2.new(0,250,0,18)
         btn.Font = Enum.Font.Gotham
+        btn.Text = "⬜ " .. casa.tipo .. " — " .. casa.nome
+        btn.TextColor3 = Color3.fromRGB(210,210,210)
         btn.TextSize = 9
-        btn.TextColor3 = Color3.fromRGB(220, 220, 220)
-        local marcado = false
-        for _, idx in ipairs(state.casas) do if idx == i then marcado = true break end end
-        btn.Text = (marcado and "[x] " or "[ ] ") .. casa.tipo .. " - " .. casa.nome
         btn.MouseButton1Click:Connect(function()
-            local achou = false
-            for k, idx in ipairs(state.casas) do
-                if idx == i then table.remove(state.casas, k) achou = true break end
+            local idx = table.find(entregaAtual.casasSelecionadas, i)
+            if idx then
+                table.remove(entregaAtual.casasSelecionadas, idx)
+                btn.Text = "⬜ " .. casa.tipo .. " — " .. casa.nome
+                btn.TextColor3 = Color3.fromRGB(210,210,210)
+            else
+                table.insert(entregaAtual.casasSelecionadas, i)
+                btn.Text = "✅ " .. casa.tipo .. " — " .. casa.nome
+                btn.TextColor3 = Color3.fromRGB(80,220,120)
             end
-            if not achou then table.insert(state.casas, i) end
-            atualizarListaCasas()
         end)
     end
-    ScrollCasas.CanvasSize = UDim2.new(0, 0, 0, #state.casasData * 19 + 5)
-    CasasContador.Text = "Casas marcadas: " .. #state.casas
+    ScrollCasas.CanvasSize = UDim2.new(0,0,0,#todasAsCasas*19,0)
 end
 
-BotaoEscanear.MouseButton1Click:Connect(escanearCasas)
-
-BotaoAtivar.MouseButton1Click:Connect(function()
-    local nick = NickBox.Text:gsub("%s+", "")
-    state.webhook = WebhookBox.Text
-    if nick == "" then state.status = "Digite o nick do comprador" return end
-    if #nick < 3 or #nick > 20 or not nick:match("^[%w_]+$") then state.status = "Nick invalido (3 a 20 letras/digitos)" return end
-    if #state.casas == 0 then state.status = "Marque pelo menos uma casa" return end
-    state.nick = nick
-    state.ativo = true
-    state.pausado = false
-    state.concluido = false
-    state.status = "Aguardando trade de " .. nick
-    salvarConfig()
-    enviarWebhook("INFO", "Bot ativado", {{name = "Nick", value = nick}, {name = "Casas", value = tostring(#state.casas)}})
+WebhookInput.FocusLost:Connect(function()
+    Config.webhook = WebhookInput.Text
+    SAMHUB.WEBHOOK_URL = Config.webhook
+    print("[SAMHUB] Webhook atualizado")
 end)
 
-BotaoPausar.MouseButton1Click:Connect(function()
-    state.pausado = not state.pausado
-    BotaoPausar.Text = state.pausado and "Retomar" or "Pausar"
-    state.status = state.pausado and "Pausado" or "Retomado"
-end)
-
-BotaoReset.MouseButton1Click:Connect(function()
-    state.nick = ""
-    state.casas = {}
-    state.ativo = false
-    state.pausado = false
-    state.concluido = false
-    state.status = "Resetado"
-    NickBox.Text = ""
-    BotaoPausar.Text = "Pausar"
+BotaoScan.MouseButton1Click:Connect(function()
+    escanearInventario()
     atualizarListaCasas()
 end)
 
-BotaoDiagnostico.MouseButton1Click:Connect(diagnostico)
+BotaoAtivar.MouseButton1Click:Connect(function()
+    local nick = NickInput.Text
+    if not nick or nick == "" then
+        entregaAtual.status = "⚠️ Digite um nick!"
+        return
+    end
+    if #entregaAtual.casasSelecionadas == 0 then
+        entregaAtual.status = "⚠️ Selecione pelo menos 1 casa!"
+        return
+    end
+    entregaAtual.nickDestinatario = nick
+    entregaAtual.pausado = false
+    entregaAtual.status = "✅ Aguardando trade de " .. nick
+    print("[SAMHUB] Ativado — Aguardando: " .. nick)
+    enviarWebhook("INFO", "Bot ativado", {{name = "Destinatário", value = nick}, {name = "Casas", value = tostring(#entregaAtual.casasSelecionadas)}})
+end)
 
-carregarConfig()
-WebhookBox.Text = state.webhook
-NickBox.Text = state.nick
+BotaoPausar.MouseButton1Click:Connect(function()
+    entregaAtual.pausado = not entregaAtual.pausado
+    BotaoPausar.Text = entregaAtual.pausado and "▶️ Retomar" or "⏸️ Pausar"
+    entregaAtual.status = entregaAtual.pausado and "⏸️ PAUSADO" or "▶️ Aguardando trade"
+    enviarWebhook("INFO", entregaAtual.pausado and "Bot pausado" or "Bot retomado", {})
+end)
+
+BotaoReset.MouseButton1Click:Connect(function()
+    entregaAtual.nickDestinatario = ""
+    entregaAtual.casasSelecionadas = {}
+    entregaAtual.pausado = false
+    NickInput.Text = ""
+    atualizarListaCasas()
+    entregaAtual.status = "🔄 Resetado — Pronto"
+    print("[SAMHUB] Resetado")
+end)
 
 task.spawn(function()
-    while rodando do
-        task.wait(0.4)
-        if state.ativo and not state.pausado and not state.concluido then
-            local janela = encontrarJanelaTrade()
-            if janela then
-                local parceiro = encontrarParceiro(janela)
-                if not parceiro then
-                    recusarTrade(janela, "Parceiro nao identificado")
-                elseif string.lower(parceiro) ~= string.lower(state.nick) then
-                    recusarTrade(janela, "Nick diferente: " .. parceiro)
-                else
-                    state.status = "Trade do nick correto - entregando"
-                    executarEntrega(janela)
-                end
-            end
-        end
-        if StatusLabel then StatusLabel.Text = "Status: " .. state.status end
-        if StatsLabel then StatsLabel.Text = "Entregas: " .. state.stats.entregas .. " | Recusadas: " .. state.stats.recusadas .. " | Erros: " .. state.stats.erros end
+    while true do
+        task.wait(0.3)
+        StatusLabel.Text = "Status: " .. entregaAtual.status
     end
 end)
 
-if typeof(getgenv) == "function" then
-    getgenv().__SAMHUB = {limpar = limparInstancia}
-end
+-- =============================================
+-- 🔄 LOOP PRINCIPAL
+-- =============================================
+print("[SAMHUB] Iniciado — Aguardando configuração")
+enviarWebhook("INFO", "SAMHUB iniciado", {{name = "Versão", value = "v1.0"}})
 
-enviarWebhook("INFO", "SAMHUB iniciado", {{name = "Executor", value = typeof(syn) == "table" and "syn" or typeof(request) == "function" and "request" or "HttpService"}})
+while true do
+    task.wait(0.5)
+    if entregaAtual.pausado or entregaAtual.nickDestinatario == "" then goto continue end
+    local janela = pegarJanelaTrade()
+    if not janela then goto continue end
+    local nomeParceiro = pegarNomeParceiro(janela)
+    if not nomeParceiro then
+        recusarTrade(janela, "Não foi possível ler o nome")
+        goto continue
+    end
+    entregaAtual.status = "📩 Trade de: " .. nomeParceiro
+    print("[SAMHUB] Pedido de: " .. nomeParceiro .. " | Esperado: " .. entregaAtual.nickDestinatario)
+    if nomesSaoIguais(nomeParceiro, entregaAtual.nickDestinatario) then
+        entregaAtual.status = "✅ NOME CONFIRMADO — Entregando..."
+        executarEntrega(janela)
+        task.wait(3)
+    else
+        recusarTrade(janela, "Nome não corresponde (espera: " .. entregaAtual.nickDestinatario .. ")")
+    end
+    ::continue::
+    esperar()
+end
