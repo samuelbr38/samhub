@@ -351,6 +351,14 @@ return function(App)
 
         if not botao.Parent or not Utils.naTela(botao) then return false, nil end
 
+        local textoBotao = string.lower(Utils.textoDe(botao))
+        for _, proibida in ipairs(Config.NUNCA_CLICAR or {}) do
+            if string.find(textoBotao, proibida, 1, true) then
+                warn("[SAMHUB] clique bloqueado por segurança: " .. textoBotao)
+                return false, nil
+            end
+        end
+
         for i, metodo in ipairs(ordem) do
             if i > 1 and (not botao.Parent or not Utils.naTela(botao)) then
                 return true, Utils.metodoClique

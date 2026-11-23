@@ -10,6 +10,9 @@ return function(App)
         local l = string.lower(texto)
         if l == "" or #texto > S.TAMANHO_MAX_NOME then return false end
         if Config.IGNORAR[l] or Config.PLACEHOLDERS[l] then return false end
+        for _, proibida in ipairs(Config.NUNCA_CLICAR) do
+            if string.find(l, proibida, 1, true) then return false end
+        end
         if string.find(l, "^[%d%s%.,%$/:%%x+-]+$") then return false end
         if string.find(l, "%d+%s*/%s*%d+") then return false end
         return true
@@ -29,15 +32,17 @@ return function(App)
 
     local function textosDoCartao(cartao)
         local textos = {}
-        for _, d in ipairs(cartao:GetDescendants()) do
-            if d:IsA("TextLabel") and Utils.visivel(d) then
+        local itens = cartao:GetDescendants()
+        if cartao:IsA("TextButton") or cartao:IsA("TextLabel") then table.insert(itens, 1, cartao) end
+        for _, d in ipairs(itens) do
+            if (d:IsA("TextLabel") or (d == cartao and d:IsA("TextButton"))) and Utils.visivel(d) then
                 local dentroDeBotao = false
                 local atual = d.Parent
-                while atual and atual ~= cartao do
+                while d ~= cartao and atual and atual ~= cartao do
                     if atual:IsA("GuiButton") then dentroDeBotao = true break end
                     atual = atual.Parent
                 end
-                local texto = Utils.limpar(d.Text)
+                local texto = string.gsub(Utils.limpar(d.Text), "^%+%s*", "")
                 if not dentroDeBotao and textoValido(texto) then
                     local tamanho = d.TextScaled and d.AbsoluteSize.Y or d.TextSize
                     table.insert(textos, { texto = texto, tamanho = tamanho, y = d.AbsolutePosition.Y })

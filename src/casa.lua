@@ -176,7 +176,7 @@ return function(App)
     for _, t in ipairs(S.TEXTO_DESLISTAR) do table.insert(TEXTOS_MENU_CAIXA, t) end
 
     local function menuDaCaixa()
-        return botao(TEXTOS_MENU_CAIXA)
+        return botao(TEXTOS_MENU_CAIXA) and botao(S.TEXTO_MENU_CAIXA_EXTRA)
     end
 
     local function menuAberto()
@@ -387,19 +387,93 @@ return function(App)
     end
 
     local function apertarItem(item)
-        local ok, metodo = Utils.clicar(item)
-        if ok then return true, metodo end
         local numero = tonumber(string.match(Utils.limpar(Utils.textoDe(item)), "%((%d)%)%s*$"))
         if numero and TECLAS_NUMERO[numero] then
+            local tela = item:FindFirstAncestorWhichIsA("LayerCollector")
+            local antes = tela and Utils.assinatura(tela)
             Utils.apertarTecla(Enum.KeyCode[TECLAS_NUMERO[numero]])
-            task.wait(0.6)
-            if not item.Parent or not Utils.naTela(item) then return true, "tecla " .. numero end
+            local mudou = esperar(function()
+                return not item.Parent or not Utils.naTela(item) or (tela ~= nil and Utils.assinatura(tela) ~= antes)
+            end, 1.2)
+            if mudou then return true, "tecla " .. numero end
         end
-        return false, nil
+        return Utils.clicar(item)
     end
 
-    local function textoDeVenda(texto)
-        return Utils.temAlguma(string.lower(texto), S.PALAVRAS_A_VENDA)
+    local function confirmarDialogo(segundos)
+        local alvos = {}
+        for _, t in ipairs(S.CONFIRMAR_LISTAGEM) do alvos[Utils.normalizar(t)] = true end
+        local function achar()
+            for _, d in ipairs(PlayerGui:GetDescendants()) do
+                if (d:IsA("TextLabel") or d:IsA("TextButton")) and alvos[Utils.normalizar(d.Text)] and Utils.naTela(d) then
+                    local botaoConfirmar = d:IsA("TextButton") and d or d:FindFirstAncestorWhichIsA("GuiButton")
+                    local quadro = botaoConfirmar and botaoConfirmar.Parent
+                    for _ = 1, 6 do
+                        if not quadro or quadro:IsA("LayerCollector") then break end
+                        local texto = string.lower(Utils.textos(quadro))
+                        if string.find(texto, "trade", 1, true) or string.find(texto, "list", 1, true) then
+                            return botaoConfirmar
+                        end
+                        quadro = quadro.Parent
+                    end
+                end
+            end
+            return nil
+        end
+        local botaoConfirmar = esperar(achar, segundos or 2.5)
+        if botaoConfirmar then
+            Utils.setStatus("Confirmando a venda da casa...", "espera")
+            return Utils.clicar(botaoConfirmar)
+        end
+        return false
+    end
+
+    local function vendaNaTela(painel)
+        if botao(S.TEXTO_DESLISTAR) then return true end
+        local t = string.lower(Utils.textos(painel))
+        return string.find(t, "listed for trade", 1, true) ~= nil
+    end
+
+    local function corDe(obj)
+        local partes = {}
+        local function anotar(o)
+            if (o:IsA("ImageButton") or o:IsA("ImageLabel")) and o.Image ~= "" and o.ImageTransparency < 1 then
+                table.insert(partes, tostring(o.ImageColor3))
+            end
+            if o:IsA("GuiObject") and not o:IsA("TextLabel") and o.BackgroundTransparency < 1 then
+                table.insert(partes, tostring(o.BackgroundColor3))
+            end
+        end
+        anotar(obj)
+        for _, d in ipairs(obj:GetDescendants()) do
+            if d:IsA("GuiObject") and Utils.visivel(d) then anotar(d) end
+        end
+        return table.concat(partes, "|")
+    end
+
+    local function selecionada(casas)
+        if #casas == 0 or not casas[1].cartao.Parent then return nil end
+        local contagem, cores = {}, {}
+        for _, filho in ipairs(casas[1].cartao.Parent:GetChildren()) do
+            if filho:IsA("GuiObject") and filho.Visible then
+                local c = corDe(filho)
+                cores[filho] = c
+                contagem[c] = (contagem[c] or 0) + 1
+            end
+        end
+        local unica
+        for _, casa in ipairs(casas) do
+            if contagem[cores[casa.cartao] or ""] == 1 then
+                if unica then return nil end
+                unica = casa
+            end
+        end
+        return unica
+    end
+
+    local function fecharPainel(painel)
+        local x = Utils.acharBotao(painel, { "X", "Close", "Fechar" }, { "close", "exit", "fechar" })
+        if x then Utils.clicar(x, painel) end
     end
 
     local function conferir()
@@ -407,8 +481,6 @@ return function(App)
             Utils.setStatus("Não consegui abrir a caixa de correio para conferir", "aviso")
             return nil
         end
-
-        local atualAVenda = botao(S.TEXTO_DESLISTAR) ~= nil
 
         local trocar = botao(S.TEXTO_TROCAR_CASA)
         if trocar then
@@ -423,28 +495,40 @@ return function(App)
         end, 4)
         local painel, lista = achado and achado[1], achado and achado[2]
         if not lista then
-            local msg = atualAVenda and "A casa atual está à venda (vi Unlist from Trade)" or "Não abriu a lista de casas"
-            Utils.setStatus(msg, atualAVenda and "ok" or "aviso")
+            Utils.setStatus("A lista HOMES não abriu", "aviso")
             return nil
         end
 
         local casas = App.Scanner.lerCartoes(lista)
-        Utils.setStatus("Conferindo " .. #casas .. " casa(s)...", "espera")
+        if #casas == 0 then
+            Utils.setStatus("Não achei as casinhas na lista HOMES", "aviso")
+            return nil
+        end
+        task.wait(0.4)
 
-        for _, casa in ipairs(casas) do
-            if textoDeVenda(Utils.textos(casa.cartao)) then return casa, casas end
+        local atual = selecionada(casas)
+        if atual and vendaNaTela(painel) then
+            fecharPainel(painel)
+            return atual, casas
         end
 
         for i, casa in ipairs(casas) do
             Utils.setStatus(string.format("Olhando casa %d de %d: %s", i, #casas, casa.nome), "espera")
             if casa.cartao.Parent and Utils.naTela(casa.cartao) then
+                local antes = Utils.assinatura(painel)
                 Utils.clicar(casa.cartao, painel)
-                task.wait(0.8)
-                if botao(S.TEXTO_DESLISTAR) or textoDeVenda(Utils.textos(painel)) then
-                    return casa, casas
+                esperar(function() return Utils.assinatura(painel) ~= antes end, 1.5)
+                task.wait(0.3)
+                if vendaNaTela(painel) then
+                    local agora = selecionada(casas)
+                    if agora == nil or agora == casa then
+                        fecharPainel(painel)
+                        return casa, casas
+                    end
                 end
             end
         end
+        fecharPainel(painel)
         return nil, casas
     end
 
@@ -490,9 +574,12 @@ return function(App)
         task.wait(0.3)
         local ok, metodo = apertarItem(itemListar)
         if ok then
-            Utils.setStatus("Casa à venda (" .. tostring(metodo) .. ")! A placa FOR TRADE apareceu.", "ok")
+            confirmarDialogo(2.5)
+            Utils.setStatus("Casa à venda (" .. tostring(metodo) .. ")! A placa FOR TRADE deve aparecer.", "ok")
         else
-            Utils.setStatus("Achei o List for Trade, mas o clique não funcionou", "erro")
+            warn(string.format("[SAMHUB] List for Trade não respondeu: %s [%s] texto=%q",
+                itemListar:GetFullName(), itemListar.ClassName, Utils.textoDe(itemListar)))
+            Utils.setStatus("Achei o List for Trade, mas nem a tecla nem o clique funcionaram (veja F9)", "erro")
         end
         return ok
     end
