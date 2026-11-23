@@ -2,22 +2,32 @@ return function(App)
     local Config, Utils, Historico = App.Config, App.Utils, App.Historico
     local S, E = Config.SAMHUB, Config.Estado
     local Players = game:GetService("Players")
+    local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
     local Trade = {}
     local rodando = false
 
-    local function janelaTrade()
-        local janela = Players.LocalPlayer.PlayerGui:FindFirstChild(S.NOME_JANELA_TRADE, true)
-        if janela and Utils.visivel(janela) then return janela end
+    local function labelParceiro(app)
+        local label = app:FindFirstChild(S.NOME_PARCEIRO, true)
+        if label and (label:IsA("TextLabel") or label:IsA("TextButton")) then return label end
         return nil
     end
 
+    local function janelaTrade()
+        local app = PlayerGui:FindFirstChild(S.NOME_JANELA_TRADE, true)
+        if not app or not Utils.visivel(app) then return nil end
+        local label = labelParceiro(app)
+        if not label or not Utils.naTela(label) then return nil end
+        return app
+    end
+
     local function textoParceiro(janela)
-        local label = janela:FindFirstChild(S.NOME_PARCEIRO, true)
-        if not label or not (label:IsA("TextLabel") or label:IsA("TextButton")) then return nil end
+        local label = labelParceiro(janela)
+        if not label then return nil end
         local texto = string.lower(Utils.limpar(label.Text))
         texto = string.gsub(texto, "^@", "")
-        return texto ~= "" and texto or nil
+        if texto == "" or Config.PLACEHOLDERS[texto] then return nil end
+        return texto
     end
 
     local function acharJogador(texto)
@@ -61,12 +71,68 @@ return function(App)
         return true, inicial
     end
 
+    local function casaNoTrade(janela)
+        local nomes = {}
+        for nome in pairs(E.casasSelecionadas) do
+            local semNumero = string.gsub(nome, " %(%d+%)$", "")
+            table.insert(nomes, string.lower(semNumero))
+        end
+        if #nomes == 0 then return false end
+        for _, d in ipairs(janela:GetDescendants()) do
+            if d:IsA("TextLabel") and Utils.visivel(d) then
+                local t = string.lower(Utils.limpar(d.Text))
+                for _, nome in ipairs(nomes) do
+                    if t ~= "" and (string.find(t, nome, 1, true) or string.find(nome, t, 1, true)) then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+
     local function esperarFechar(janela, timeout)
         local t = 0
         while rodando and janelaTrade() == janela and (not timeout or t < timeout) do
             task.wait(0.25)
             t += 0.25
         end
+    end
+
+    local function contemPalavra(texto, palavra)
+        return string.find(texto, "%f[%w_]" .. Utils.escaparPadrao(palavra) .. "%f[^%w_]") ~= nil
+    end
+
+    local function aceitarPedido()
+        local comprador = Players:GetPlayerByUserId(E.userIdAlvo)
+        if not comprador then return false end
+        local nomes = { string.lower(comprador.Name), string.lower(comprador.DisplayName) }
+
+        for _, d in ipairs(PlayerGui:GetDescendants()) do
+            if d:IsA("TextLabel") and Utils.naTela(d) then
+                local t = string.lower(Utils.limpar(d.Text))
+                if string.find(t, "trade", 1, true) or string.find(t, "troca", 1, true) then
+                    local temNome = contemPalavra(t, nomes[1]) or contemPalavra(t, nomes[2])
+                    if temNome then
+                        local atual = d.Parent
+                        for _ = 1, 6 do
+                            if not atual or atual:IsA("LayerCollector") then break end
+                            local botao = Utils.acharBotao(atual, S.TEXTO_ACEITAR)
+                            if botao and Utils.naTela(botao) then
+                                Utils.esperar()
+                                if Utils.clicar(botao) then
+                                    Utils.setStatus("Pedido de @" .. comprador.Name .. " aceito. Abrindo trade...", "espera")
+                                    task.wait(2)
+                                    return true
+                                end
+                            end
+                            atual = atual.Parent
+                        end
+                    end
+                end
+            end
+        end
+        return false
     end
 
     local function avisarEstado()
@@ -93,7 +159,9 @@ return function(App)
             if achou then
                 E.nickAlvo, E.userIdAlvo, E.pausado = nick, id, false
                 avisarEstado()
-                Utils.setStatus("Aguardando trade de @" .. nick, "espera")
+                local noServidor = Players:GetPlayerByUserId(id) ~= nil
+                Utils.setStatus("Aguardando trade de @" .. nick
+                    .. (noServidor and "" or " (ainda não está no servidor)"), "espera")
             else
                 Utils.setStatus("Usuário @" .. nick .. " não existe (use o @username)", "erro")
             end
@@ -129,10 +197,14 @@ return function(App)
 
     local function recusar(janela, nome, id, motivo)
         Utils.esperar()
-        Utils.clicarPorTexto(janela, S.TEXTO_RECUSAR)
-        Utils.setStatus("Recusado: " .. nome .. " (" .. motivo .. ")", "aviso")
+        local clicou = Utils.clicarPorTexto(janela, S.TEXTO_RECUSAR)
         Historico.registrar(nome, id, "recusado", motivo)
-        esperarFechar(janela, 5)
+        if clicou then
+            Utils.setStatus("Recusado: " .. nome .. " (" .. motivo .. ")", "aviso")
+        else
+            Utils.setStatus("Não achei o botão Recusar. Feche o trade de " .. nome .. " manualmente.", "aviso")
+        end
+        esperarFechar(janela)
     end
 
     local function processar(janela)
@@ -152,6 +224,10 @@ return function(App)
             return esperarFechar(janela)
         end
 
+        if S.VERIFICAR_CASA and not casaNoTrade(janela) then
+            return Utils.setStatus("A casa marcada ainda não apareceu no trade", "espera")
+        end
+
         Utils.setStatus("Conferindo oferta de @" .. jogador.Name .. "...", "espera")
         local estavel, foto = ofertaEstavel(janela)
         if not estavel then
@@ -161,7 +237,7 @@ return function(App)
         Utils.esperar()
         local botaoAceitar = Utils.acharBotao(janela, S.TEXTO_ACEITAR)
         if not botaoAceitar then
-            return Utils.setStatus("Botão Aceitar não encontrado (use Mapear UI)", "erro")
+            return Utils.setStatus("Botão Aceitar não encontrado (use Mapear trade)", "erro")
         end
         if not Utils.clicar(botaoAceitar) then
             E.pausado = true
@@ -217,12 +293,16 @@ return function(App)
                 task.wait(0.5)
                 if E.userIdAlvo and not E.pausado then
                     local janela = janelaTrade()
-                    if janela then
-                        local ok, err = pcall(processar, janela)
-                        if not ok then
-                            warn("[SAMHUB] " .. tostring(err))
-                            Utils.setStatus("Erro interno (veja F9)", "erro")
+                    local ok, err = pcall(function()
+                        if janela then
+                            processar(janela)
+                        elseif S.ACEITAR_PEDIDO then
+                            aceitarPedido()
                         end
+                    end)
+                    if not ok then
+                        warn("[SAMHUB] " .. tostring(err))
+                        Utils.setStatus("Erro interno (veja F9)", "erro")
                     end
                 end
             end
@@ -232,6 +312,8 @@ return function(App)
     function Trade.parar()
         rodando = false
     end
+
+    Trade.janelaTrade = janelaTrade
 
     return Trade
 end

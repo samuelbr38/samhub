@@ -114,6 +114,34 @@ return function(App)
         return true
     end
 
+    function Utils.naTela(obj)
+        if not obj:IsA("GuiObject") or not Utils.visivel(obj) then return false end
+        local tam, pos = obj.AbsoluteSize, obj.AbsolutePosition
+        if tam.X < 2 or tam.Y < 2 then return false end
+        local camera = workspace.CurrentCamera
+        local tela = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+        if pos.X + tam.X < 0 or pos.Y + tam.Y < 0 or pos.X > tela.X or pos.Y > tela.Y then
+            return false
+        end
+        local atual = obj
+        while atual and not atual:IsA("LayerCollector") do
+            if atual:IsA("CanvasGroup") and atual.GroupTransparency > 0.95 then return false end
+            atual = atual.Parent
+        end
+        return true
+    end
+
+    function Utils.escaparPadrao(texto)
+        return (string.gsub(texto, "[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
+    end
+
+    function Utils.escaparRich(texto)
+        texto = string.gsub(texto, "&", "&amp;")
+        texto = string.gsub(texto, "<", "&lt;")
+        texto = string.gsub(texto, ">", "&gt;")
+        return texto
+    end
+
     local function listaTextos(t)
         local lista = {}
         for _, v in ipairs(type(t) == "table" and t or { t }) do

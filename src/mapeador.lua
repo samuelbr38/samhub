@@ -1,27 +1,72 @@
 return function(App)
-    local Utils = App.Utils
+    local Config, Utils = App.Config, App.Utils
+    local S = Config.SAMHUB
     local Players = game:GetService("Players")
+    local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
     local Mapeador = {}
+    local LIMITE = 1500
 
-    function Mapeador.mapear(raiz)
-        raiz = raiz or Players.LocalPlayer:WaitForChild("PlayerGui")
+    local function entregar(titulo, linhas)
+        if #linhas >= LIMITE then table.insert(linhas, "... (cortado em " .. LIMITE .. " linhas)") end
+        local saida = "===== SAMHUB: " .. titulo .. " =====\n" .. table.concat(linhas, "\n")
+        print(saida)
+        local copiou = Utils.copiar(saida)
+        Utils.setStatus(titulo .. ": " .. #linhas .. " linhas (F9"
+            .. (copiou and " e copiado. Cole no chat)" or ")"), "info")
+    end
+
+    local function arvore(raiz)
         local linhas = {}
+        local function visitar(obj, nivel)
+            if #linhas >= LIMITE then return end
+            if obj:IsA("GuiObject") and not obj.Visible then return end
+            if obj:IsA("GuiObject") or obj:IsA("LayerCollector") then
+                local extra = ""
+                if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+                    local texto = Utils.limpar(obj.Text)
+                    if texto ~= "" then extra = string.format(" %q", texto) end
+                end
+                if obj:IsA("GuiButton") then extra = extra .. " [clicável]" end
+                if obj:IsA("GuiObject") and not Utils.naTela(obj) then extra = extra .. " [fora da tela]" end
+                table.insert(linhas, string.rep("  ", nivel) .. obj.Name .. " (" .. obj.ClassName .. ")" .. extra)
+                for _, filho in ipairs(obj:GetChildren()) do
+                    visitar(filho, nivel + 1)
+                end
+            end
+        end
+        visitar(raiz, 0)
+        return linhas
+    end
 
-        for _, d in ipairs(raiz:GetDescendants()) do
-            if (d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox")) and Utils.visivel(d) then
+    function Mapeador.mapearTrade()
+        local app = PlayerGui:FindFirstChild(S.NOME_JANELA_TRADE, true)
+        if not app then
+            return Utils.setStatus("Não achei '" .. S.NOME_JANELA_TRADE .. "'. Use Mapear tudo.", "erro")
+        end
+        entregar("MAPA DO TRADE", arvore(app))
+    end
+
+    function Mapeador.mapearCasas()
+        local painel = App.Scanner.acharPainel()
+        if not painel then
+            return Utils.setStatus("Lista de casas não encontrada. Abra MY HOMES e tente de novo.", "erro")
+        end
+        entregar("MAPA DAS CASAS", arvore(painel))
+    end
+
+    function Mapeador.mapear()
+        local linhas = {}
+        for _, d in ipairs(PlayerGui:GetDescendants()) do
+            if #linhas >= LIMITE then break end
+            if (d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox")) and Utils.naTela(d) then
                 local texto = Utils.limpar(d.Text)
                 if texto ~= "" then
                     table.insert(linhas, string.format("%s [%s] = %q", d:GetFullName(), d.ClassName, texto))
                 end
             end
         end
-
-        local saida = table.concat(linhas, "\n")
-        print("===== SAMHUB: MAPA DA UI (" .. #linhas .. " itens) =====\n" .. saida)
-        local copiou = Utils.copiar(saida)
-        Utils.setStatus(#linhas .. " itens mapeados (F9" .. (copiou and " e área de transferência)" or ")"), "info")
-        return linhas
+        entregar("MAPA DA TELA", linhas)
     end
 
     return Mapeador

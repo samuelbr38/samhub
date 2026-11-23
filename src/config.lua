@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "4.0"
+Config.VERSAO = "4.1"
 
 Config.SAMHUB = {
     NOME_JANELA_TRADE    = "TradeApp",
@@ -12,6 +12,8 @@ Config.SAMHUB = {
     TEXTO_RECUSAR   = { "Decline", "Recusar", "Cancel", "Cancelar" },
 
     RECUSAR_OUTROS = true,
+    ACEITAR_PEDIDO = true,
+    VERIFICAR_CASA = false,
     TEMPO_ESTAVEL  = 1.5,
     DELAY_MIN      = 0.8,
     DELAY_MAX      = 2.5,
@@ -27,7 +29,18 @@ Config.SAMHUB = {
     MAX_HISTORICO     = 50,
 }
 
-Config.AJUSTES_SALVOS = { "RECUSAR_OUTROS", "TEMPO_ESTAVEL", "DELAY_MIN", "DELAY_MAX" }
+Config.AJUSTES_SALVOS = {
+    "RECUSAR_OUTROS", "ACEITAR_PEDIDO", "VERIFICAR_CASA", "TEMPO_ESTAVEL", "DELAY_MIN", "DELAY_MAX",
+}
+
+Config.PLACEHOLDERS = {
+    ["somanycharacters"] = true, ["playername"] = true, ["username"] = true,
+    ["name"] = true, ["label"] = true, ["text"] = true, ["player"] = true,
+}
+
+Config.TITULOS_LISTA_CASAS = {
+    ["my homes"] = true, ["my houses"] = true, ["minhas casas"] = true, ["homes"] = true,
+}
 
 Config.PALAVRAS_CASA = { "house", "home", "casa", "mansion", "castle", "apartment", "iglu", "igloo", "farm", "cabin" }
 
@@ -35,6 +48,9 @@ Config.IGNORAR = {
     ["home"] = true, ["house"] = true, ["casa"] = true, ["houses"] = true, ["casas"] = true,
     ["my house"] = true, ["my home"] = true, ["go home"] = true,
     ["teleport home"] = true, ["home button"] = true,
+    ["build house"] = true, ["my homes"] = true, ["my houses"] = true, ["minhas casas"] = true,
+    ["build"] = true, ["visit"] = true, ["edit"] = true, ["select"] = true, ["equip"] = true,
+    ["equipped"] = true, ["sell"] = true, ["trade"] = true, ["for trade"] = true, ["close"] = true,
 }
 
 Config.TIPOS = {
@@ -46,6 +62,13 @@ Config.TIPOS = {
     { "igloo",     "❄️ Iglu" },
     { "farm",      "🌾 Fazenda" },
     { "wooden",    "🪵 Madeira" },
+    { "queenslander", "🏡 Queenslander" },
+    { "treehouse", "🌳 Casa na Árvore" },
+    { "moon",      "🌙 Lua" },
+    { "ice cream", "🍦 Sorvete" },
+    { "toyshop",   "🧸 Loja de Brinquedos" },
+    { "ranch",     "🐎 Rancho" },
+    { "cottage",   "🏡 Chalé" },
 }
 
 Config.Estado = {

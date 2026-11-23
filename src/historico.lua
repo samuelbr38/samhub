@@ -15,7 +15,13 @@ return function(App)
     function Historico.carregar()
         local dados = Utils.lerJSON(S.ARQUIVO_HISTORICO)
         if type(dados) == "table" then
-            registros = dados
+            registros = {}
+            for _, r in ipairs(dados) do
+                if not Config.PLACEHOLDERS[string.lower(tostring(r.nick))] then
+                    table.insert(registros, r)
+                end
+            end
+            if #registros ~= #dados then Utils.salvarJSON(S.ARQUIVO_HISTORICO, registros) end
             Historico.Mudou:Fire()
         end
     end

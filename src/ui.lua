@@ -214,7 +214,7 @@ return function(App)
         local avisoVazio = C.texto({
             Parent = fundoLista, Size = UDim2.new(1, 0, 1, 0), TextXAlignment = Enum.TextXAlignment.Center,
             TextColor3 = Tema.apagado, TextSize = 11, TextWrapped = true,
-            Text = "Abra a lista de casas no jogo\ne clique em Escanear",
+            Text = "Abra a lista MY HOMES no jogo\ne clique em Escanear",
         })
 
         local function atualizarContador()
@@ -236,9 +236,13 @@ return function(App)
                 Parent = caixa, Text = "✓", Size = UDim2.new(1, 0, 1, 0), Font = Tema.fonteForte,
                 TextSize = 12, TextColor3 = Tema.fundo, TextXAlignment = Enum.TextXAlignment.Center,
             })
+            local textoLinha = (casa.icone or "🏠") .. "  " .. Utils.escaparRich(casa.nome)
+            if casa.detalhe and casa.detalhe ~= "" then
+                textoLinha ..= '  <font color="#7c7c96" size="10">' .. Utils.escaparRich(casa.detalhe) .. "</font>"
+            end
             local nome = C.texto({
                 Parent = linha, Position = UDim2.new(0, 34, 0, 0), Size = UDim2.new(1, -42, 1, 0),
-                Text = casa.tipo .. "  ·  " .. casa.nome, TextSize = 11, TextTruncate = Enum.TextTruncate.AtEnd,
+                Text = textoLinha, RichText = true, TextSize = 11, TextTruncate = Enum.TextTruncate.AtEnd,
             })
 
             local function desenhar()
@@ -423,41 +427,64 @@ return function(App)
             Valor = S.RECUSAR_OUTROS,
             OnChange = function(v) S.RECUSAR_OUTROS = v; App.salvarAjustes() end,
         })
+        C.toggle({
+            Parent = pgAjustes, LayoutOrder = 3, Texto = "Aceitar pedido do comprador",
+            Descricao = "Clica em Aceitar no aviso \"X quer trocar\" só do comprador",
+            Valor = S.ACEITAR_PEDIDO,
+            OnChange = function(v) S.ACEITAR_PEDIDO = v; App.salvarAjustes() end,
+        })
+        C.toggle({
+            Parent = pgAjustes, LayoutOrder = 4, Texto = "Conferir casa no trade",
+            Descricao = "Só aceita se o nome da casa marcada aparecer no trade",
+            Valor = S.VERIFICAR_CASA,
+            OnChange = function(v) S.VERIFICAR_CASA = v; App.salvarAjustes() end,
+        })
         C.stepper({
-            Parent = pgAjustes, LayoutOrder = 3, Texto = "Oferta parada por", Valor = S.TEMPO_ESTAVEL,
+            Parent = pgAjustes, LayoutOrder = 5, Texto = "Oferta parada por", Valor = S.TEMPO_ESTAVEL,
             Min = 0, Max = 5, Passo = 0.5, Sufixo = "s",
             OnChange = function(v) S.TEMPO_ESTAVEL = v; App.salvarAjustes() end,
         })
         C.stepper({
-            Parent = pgAjustes, LayoutOrder = 4, Texto = "Atraso mínimo", Valor = S.DELAY_MIN,
+            Parent = pgAjustes, LayoutOrder = 6, Texto = "Atraso mínimo", Valor = S.DELAY_MIN,
             Min = 0.2, Max = 5, Passo = 0.1, Sufixo = "s",
             OnChange = function(v) S.DELAY_MIN = v; App.salvarAjustes() end,
         })
         C.stepper({
-            Parent = pgAjustes, LayoutOrder = 5, Texto = "Atraso máximo", Valor = S.DELAY_MAX,
+            Parent = pgAjustes, LayoutOrder = 7, Texto = "Atraso máximo", Valor = S.DELAY_MAX,
             Min = 0.2, Max = 8, Passo = 0.1, Sufixo = "s",
             OnChange = function(v) S.DELAY_MAX = v; App.salvarAjustes() end,
         })
 
-        C.titulo(pgAjustes, 6, "Ferramentas")
+        C.titulo(pgAjustes, 8, "Ferramentas")
+        local linhaMapa = C.linha(pgAjustes, 9, 34)
         C.botao({
-            Parent = pgAjustes, LayoutOrder = 7, Texto = "🐞  Mapear UI do jogo", Size = UDim2.new(1, 0, 0, 34),
+            Parent = linhaMapa, Texto = "🔄  Mapear trade", Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11,
+            OnClick = function() Mapeador.mapearTrade() end,
+        })
+        C.botao({
+            Parent = linhaMapa, Texto = "🏠  Mapear casas", Position = UDim2.new(0.5, 4, 0, 0),
+            Size = UDim2.new(0.5, -4, 1, 0), TextSize = 11,
+            OnClick = function() Mapeador.mapearCasas() end,
+        })
+        C.botao({
+            Parent = pgAjustes, LayoutOrder = 10, Texto = "🐞  Mapear tudo (textos da tela)",
+            Size = UDim2.new(1, 0, 0, 30), TextSize = 11,
             OnClick = function() Mapeador.mapear() end,
         })
         C.texto({
-            Parent = pgAjustes, LayoutOrder = 8, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+            Parent = pgAjustes, LayoutOrder = 11, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
             TextWrapped = true, TextSize = 10, TextColor3 = Tema.suave,
-            Text = "Abra a janela de trade (ou a lista de casas) e clique acima. Os nomes aparecem no F9 "
-                .. "e vão para a área de transferência. Depois preencha o config.lua.",
+            Text = "Mapear trade: com um trade ABERTO. Mapear casas: com MY HOMES aberto. "
+                .. "O resultado vai para o F9 e para a área de transferência.",
         })
 
-        C.titulo(pgAjustes, 9, "Atalhos")
+        C.titulo(pgAjustes, 12, "Atalhos")
         C.texto({
-            Parent = pgAjustes, LayoutOrder = 10, Size = UDim2.new(1, 0, 0, 16), TextSize = 11,
+            Parent = pgAjustes, LayoutOrder = 13, Size = UDim2.new(1, 0, 0, 16), TextSize = 11,
             TextColor3 = Tema.suave, Text = S.TECLA_MENU.Name .. " → esconder / mostrar o menu",
         })
         C.texto({
-            Parent = pgAjustes, LayoutOrder = 11, Size = UDim2.new(1, 0, 0, 16), TextSize = 11,
+            Parent = pgAjustes, LayoutOrder = 14, Size = UDim2.new(1, 0, 0, 16), TextSize = 11,
             TextColor3 = Utils.temArquivos and Tema.verde or Tema.amarelo,
             Text = Utils.temArquivos and "● Ajustes e histórico salvos em arquivo"
                 or "● Seu executor não salva arquivos (só nesta sessão)",
