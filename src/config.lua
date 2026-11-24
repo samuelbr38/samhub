@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "6.0"
+Config.VERSAO = "6.1"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -21,8 +21,7 @@ Config.SAMHUB = {
     TEXTO_TROCAR_CASA      = { "Change House", "Trocar de casa", "Mudar de casa" },
     TEXTO_MENU_CAIXA_EXTRA = { "Throw Party", "Lock Door", "Unlock Door", "Change House" },
     CONFIRMAR_LISTAGEM     = { "Yes", "Confirm", "OK", "Okay", "Sim", "Confirmar" },
-    TEXTO_MUDAR_PARA_CASA  = { "Go!", "Go", "Ir", "Move In", "Move Here", "Change House", "Spawn Here", "Set as Spawn", "Set Spawn",
-                               "Live Here", "Select", "Choose", "Use House", "Set Home", "Mudar", "Escolher", "Morar aqui" },
+    TEXTO_MUDAR_PARA_CASA  = { "Go!", "Go", "Move In", "Move Here" },
     PALAVRAS_A_VENDA       = { "unlist", "for trade", "listed", "à venda" },
     PADROES_PLACA_CASA     = { "%s's house", "casa de %s" },
     TECLA_INTERAGIR        = Enum.KeyCode.E,
@@ -82,6 +81,8 @@ Config.NUNCA_CLICAR = {
     "build", "buy", "comprar", "construir", "robux", "purchase",
     "sell", "vender", "unlist", "paint", "delete", "apagar", "rename",
 }
+
+Config.PALAVRAS_PERIGO = { "sell", "vender", "venda por", "delete", "apagar", "robux", "purchase", "buy", "comprar" }
 
 Config.IGNORAR = {
     ["home"] = true, ["house"] = true, ["casa"] = true, ["houses"] = true, ["casas"] = true,

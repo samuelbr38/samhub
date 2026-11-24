@@ -396,6 +396,9 @@ return function(App)
                         ultimaColeta = os.clock()
                         coletarE(false)
                     end
+                    if os.clock() - Utils.ultimoClique < 12 then
+                        Utils.cancelarDialogoPerigoso()
+                    end
                 end)
             end
         end)
@@ -612,7 +615,7 @@ return function(App)
                     for _ = 1, 6 do
                         if not quadro or quadro:IsA("LayerCollector") then break end
                         if Utils.temAlguma(string.lower(Utils.textos(quadro)), palavras) then
-                            return botaoConfirmar
+                            return { botaoConfirmar, quadro }
                         end
                         quadro = quadro.Parent
                     end
@@ -620,12 +623,18 @@ return function(App)
             end
             return nil
         end
-        local botaoConfirmar = esperar(achar, segundos or 2.5)
-        if botaoConfirmar then
-            Utils.setStatus("Confirmando...", "espera")
-            return Utils.clicar(botaoConfirmar)
+        local achado = esperar(achar, segundos or 2.5)
+        if not achado then return false end
+        local botaoConfirmar, quadro = achado[1], achado[2]
+        local proibida = Utils.temPerigo(Utils.textos(quadro))
+        if proibida then
+            warn("[SAMHUB] não confirmei (" .. proibida .. "): " .. Utils.textos(quadro))
+            Utils.cancelarDialogoPerigoso()
+            Utils.setStatus("Apareceu uma janela de '" .. proibida .. "'. NÃO confirmei e cancelei.", "erro")
+            return false
         end
-        return false
+        Utils.setStatus("Confirmando...", "espera")
+        return Utils.clicar(botaoConfirmar, quadro)
     end
 
     local function vendaNaTela(painel)
@@ -901,23 +910,30 @@ return function(App)
             end
         end
 
-        local tela = painel:FindFirstAncestorWhichIsA("LayerCollector")
         local mudar = Utils.acharBotao(painel, S.TEXTO_MUDAR_PARA_CASA)
-            or (tela and Utils.acharBotao(tela, S.TEXTO_MUDAR_PARA_CASA))
         if mudar then
             Utils.setStatus("Indo para a casa '" .. casa.nome .. "' (Go!)...", "espera")
             local _, raiz = personagem()
             local antes = raiz and raiz.Position
             if not Utils.clicar(mudar, painel) then
-                Utils.setStatus("Não consegui apertar o Go!", "erro")
+                Utils.setStatus("Não consegui apertar o Go! (veja F9)", "erro")
                 return false
             end
-            confirmarDialogo(2.5, { "house", "home", "casa", "move", "change", "go" })
-            esperar(function()
+            task.wait(0.4)
+            if Utils.cancelarDialogoPerigoso() then
+                Utils.setStatus("Algo deu errado no Go! (apareceu janela de vender). Cancelei e parei.", "erro")
+                return false
+            end
+            confirmarDialogo(2, { "move", "change", "go to" })
+            local deuCerto = esperar(function()
                 local _, r = personagem()
                 local moveu = r and antes and (r.Position - antes).Magnitude > 15
                 return moveu or not (painel.Parent and Utils.visivel(painel))
             end, 8)
+            if Utils.cancelarDialogoPerigoso() or not deuCerto then
+                Utils.setStatus("O Go! não fez efeito. Parei por segurança.", "erro")
+                return false
+            end
             task.wait(1.5)
             if painel.Parent and Utils.visivel(painel) then fecharPainel(painel) end
             placaGuardada = nil
