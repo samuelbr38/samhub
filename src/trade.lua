@@ -265,6 +265,33 @@ return function(App)
         esperarFechar(janela)
     end
 
+    local function jaConfirmado(janela)
+        return Utils.acharBotao(janela, S.TEXTO_CONFIRMADO) ~= nil
+    end
+
+    local function etapaConfirmar(janela)
+        return Utils.acharBotao(janela, S.TEXTO_CONFIRMAR) ~= nil or jaConfirmado(janela)
+    end
+
+    local function sucessoNaTela()
+        for _, d in ipairs(PlayerGui:GetDescendants()) do
+            if d:IsA("TextLabel") and Utils.naTela(d) then
+                local texto = Utils.limpar(d.Text)
+                if Utils.temAlguma(string.lower(texto), S.TEXTOS_SUCESSO) then
+                    local quadro = d.Parent
+                    for _ = 1, 5 do
+                        if not quadro or quadro:IsA("LayerCollector") then break end
+                        local botao = Utils.acharBotao(quadro, S.TEXTO_NICE)
+                        if botao then return botao, quadro, texto end
+                        quadro = quadro.Parent
+                    end
+                end
+            end
+        end
+        return nil
+    end
+    Trade.sucessoNaTela = sucessoNaTela
+
     local function processar(janela, jogador, texto, erro)
         if not (jogador and jogador.UserId == E.userIdAlvo) then
             local nome = jogador and jogador.Name or texto or "?"
@@ -280,63 +307,90 @@ return function(App)
             return Utils.setStatus("A casa marcada ainda não apareceu no trade", "espera")
         end
 
-        Utils.setStatus("Trade com @" .. jogador.Name .. " aberto. Conferindo oferta...", "espera")
-        local estavel, foto = ofertaEstavel(janela)
-        if not estavel then
-            return Utils.setStatus("Esperando: " .. foto, "espera")
-        end
-
-        Utils.esperar()
-        local botaoAceitar = Utils.acharBotao(janela, S.TEXTO_ACEITAR, S.NOMES_ACEITAR)
-        if not botaoAceitar then
-            return Utils.setStatus("Não achei o botão Aceitar (veja a aba Diagnóstico)", "erro")
-        end
-        local aceitou, metodo = Utils.clicar(botaoAceitar, janela)
-        if not aceitou then
-            E.pausado = true
-            avisarEstado()
-            return Utils.setStatus("O clique no Aceitar não funcionou com nenhum método. Pausado.", "erro")
-        end
-        Utils.setStatus("Aceitei (" .. tostring(metodo) .. "). Esperando o Confirmar...", "espera")
-
-        local confirmou, t = false, 0
-        while rodando and t < S.TIMEOUT_CONFIRMAR + 15 do
-            task.wait(0.4)
-            t += 0.4
-            if janelaTrade() ~= janela then break end
-
-            local agora = fotoOferta(janela)
-            if S.NOME_OFERTA_PARCEIRO and foto and agora and agora ~= foto then
-                Utils.clicarPorTexto(janela, S.TEXTO_RECUSAR, S.NOMES_RECUSAR)
-                Utils.setStatus("A oferta mudou depois do Aceitar! Trade cancelado.", "erro")
-                Historico.registrar(jogador.Name, jogador.UserId, "cancelado", "oferta mudou")
-                return esperarFechar(janela, 5)
+        if not etapaConfirmar(janela) then
+            Utils.setStatus("Trade com @" .. jogador.Name .. " aberto. Conferindo oferta...", "espera")
+            local estavel, foto = ofertaEstavel(janela)
+            if not estavel then
+                return Utils.setStatus("Esperando: " .. foto, "espera")
             end
 
-            if not confirmou then
-                local botao = Utils.acharBotao(janela, S.TEXTO_CONFIRMAR, S.NOMES_CONFIRMAR)
-                if botao and Utils.clicar(botao, janela) then
+            Utils.esperar()
+            local botaoAceitar = Utils.acharBotao(janela, S.TEXTO_ACEITAR, S.NOMES_ACEITAR)
+            if not botaoAceitar then
+                return Utils.setStatus("Não achei o botão Accept (veja a aba Diagnóstico)", "erro")
+            end
+            local aceitou, metodo = Utils.clicar(botaoAceitar, janela)
+            if not aceitou then
+                E.pausado = true
+                avisarEstado()
+                return Utils.setStatus("O clique no Accept não funcionou com nenhum método. Pausado.", "erro")
+            end
+            Utils.setStatus("Accept (" .. tostring(metodo) .. "). Esperando a tela de confirmação...", "espera")
+        end
+
+        local confirmou, vistoEm = jaConfirmado(janela), nil
+        local inicio = os.clock()
+        while rodando and not confirmou and os.clock() - inicio < S.TIMEOUT_CONFIRMAR + 30 do
+            task.wait(0.4)
+            if janelaTrade() ~= janela then break end
+            if jaConfirmado(janela) then
+                confirmou = true
+                break
+            end
+            local botao = Utils.acharBotao(janela, S.TEXTO_CONFIRMAR)
+            if botao then
+                vistoEm = vistoEm or os.clock()
+                local falta = S.ESPERA_CONFIRMAR - (os.clock() - vistoEm)
+                local texto = Utils.limpar(Utils.textoDe(botao))
+                if falta > 0 or string.find(texto, "%d") then
+                    Utils.setStatus(string.format("Tela de confirmação: aperto o Confirm em %.0fs...", math.max(falta, 1)), "espera")
+                elseif Utils.clicar(botao, janela, function() return jaConfirmado(janela) end, 2) then
                     confirmou = true
-                    Utils.setStatus("Confirmado. Esperando o comprador...", "espera")
-                elseif t > S.TIMEOUT_CONFIRMAR then
-                    break
+                else
+                    Utils.setStatus("O Confirm ainda não respondeu. Tento de novo...", "espera")
+                    task.wait(1)
                 end
             end
         end
 
-        if janelaTrade() == janela then
-            return Utils.setStatus("O trade ainda está aberto. Termine manualmente.", "aviso")
+        if not confirmou then
+            if janelaTrade() == janela then
+                return Utils.setStatus("O trade ainda está aberto e não consegui confirmar. Termine manualmente.", "aviso")
+            end
+            Historico.registrar(jogador.Name, jogador.UserId, "cancelado", "fechou antes de confirmar")
+            return Utils.setStatus("O trade fechou antes de confirmar. Aguardando de novo...", "aviso")
         end
 
-        if confirmou then
-            Historico.registrar(jogador.Name, jogador.UserId, "finalizado", "confira o inventário")
+        Utils.setStatus("Confirmado! Esperando @" .. jogador.Name .. " confirmar também...", "espera")
+        local nice, quadro, mensagem
+        local fechouEm
+        inicio = os.clock()
+        while rodando and os.clock() - inicio < S.TIMEOUT_RESULTADO do
+            task.wait(0.4)
+            nice, quadro, mensagem = sucessoNaTela()
+            if nice then break end
+            if janelaTrade() ~= janela then
+                fechouEm = fechouEm or os.clock()
+                if os.clock() - fechouEm > 5 then break end
+            end
+        end
+
+        if nice then
+            if not Utils.temPalavra(string.lower(mensagem), string.lower(jogador.Name))
+                and not Utils.temPalavra(string.lower(mensagem), string.lower(jogador.DisplayName)) then
+                Utils.aviso("a mensagem de sucesso não cita @" .. jogador.Name .. ": " .. mensagem)
+            end
+            Utils.clicar(nice, quadro)
+            Historico.registrar(jogador.Name, jogador.UserId, "finalizado", "casa entregue ✅")
             E.casasSelecionadas = {}
             desativar()
-            Utils.setStatus("Trade com @" .. jogador.Name .. " finalizado! Confira se a casa saiu.", "ok")
+            Utils.setStatus("Casa entregue para @" .. jogador.Name .. "! ✅", "ok")
             Trade.Terminou:Fire("finalizado", jogador.Name)
+        elseif janelaTrade() == janela then
+            Utils.setStatus("@" .. jogador.Name .. " ainda não confirmou. Termine manualmente.", "aviso")
         else
-            Historico.registrar(jogador.Name, jogador.UserId, "cancelado", "fechou antes de confirmar")
-            Utils.setStatus("O trade fechou antes de confirmar. Aguardando de novo...", "aviso")
+            Historico.registrar(jogador.Name, jogador.UserId, "cancelado", "fechou sem a mensagem de sucesso")
+            Utils.setStatus("O trade fechou sem 'You traded your home'. Aguardando de novo...", "aviso")
         end
     end
 
@@ -394,6 +448,22 @@ return function(App)
                 if E.userIdAlvo and not E.pausado then
                     local ok, err = pcall(function()
                         if fecharAvisoDeSeguranca() then return end
+                        local nice, quadro, mensagem = sucessoNaTela()
+                        if nice then
+                            Utils.clicar(nice, quadro)
+                            local msg = string.lower(mensagem)
+                            if Utils.temPalavra(msg, string.lower(E.nickAlvo)) then
+                                Historico.registrar(E.nickAlvo, E.userIdAlvo, "finalizado", "casa entregue ✅")
+                                local nick = E.nickAlvo
+                                E.casasSelecionadas = {}
+                                desativar()
+                                Utils.setStatus("Casa entregue para @" .. nick .. "! ✅", "ok")
+                                Trade.Terminou:Fire("finalizado", nick)
+                            else
+                                Utils.aviso("apertei Nice numa mensagem que não é do comprador: " .. mensagem)
+                            end
+                            return
+                        end
                         local janela, jogador, texto, erro = lerJanela()
                         if janela then
                             Utils.trabalhando()

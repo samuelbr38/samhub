@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "6.4"
+Config.VERSAO = "6.5"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -13,6 +13,12 @@ Config.SAMHUB = {
     TEXTO_CONFIRMAR = { "Confirm", "Confirmar" },
     NOMES_CONFIRMAR = { "confirm" },
     TEXTO_RECUSAR   = { "Decline", "Recusar", "Cancel", "Cancelar" },
+    TEXTO_CONFIRMADO = { "Confirmed!", "Confirmed", "Confirmado!", "Confirmado" },
+    ESPERA_CONFIRMAR = 5,
+    TIMEOUT_RESULTADO = 120,
+
+    TEXTOS_SUCESSO = { "you traded your home to", "you traded your house to", "trade successful", "trade complete" },
+    TEXTO_NICE     = { "Nice!", "Nice", "Okay", "OK", "Yay!" },
     NOMES_RECUSAR   = { "decline", "cancel" },
 
     PALAVRAS_CAIXA_CORREIO = { "mail", "correio", "trade house", "list for trade" },
