@@ -1,6 +1,7 @@
 return function(App)
     local Config, Tema, Utils, C = App.Config, App.Tema, App.Utils, App.C
     local Scanner, Trade, Mapeador, Historico, Casa = App.Scanner, App.Trade, App.Mapeador, App.Historico, App.Casa
+    local Fila = App.Fila
     local S, E = Config.SAMHUB, Config.Estado
 
     local Players = game:GetService("Players")
@@ -204,6 +205,7 @@ return function(App)
 
         local ABAS = {
             { icone = "🚚", nome = "ENTREGA" },
+            { icone = "📦", nome = "FILA" },
             { icone = "📜", nome = "HISTÓRICO" },
             { icone = "⚙️", nome = "AJUSTES" },
             { icone = "🧪", nome = "DIAGNÓSTICO" },
@@ -240,7 +242,7 @@ return function(App)
                 Parent = conteudo, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Visible = false,
             }, { C.padding(8, 8, 8, 8) })
         end
-        local pgEntrega, pgHistorico, pgAjustes, pgDiag, pgRegistro = table.unpack(paginas)
+        local pgEntrega, pgFila, pgHistorico, pgAjustes, pgDiag, pgRegistro = table.unpack(paginas)
 
         local cardComprador, cardCasas = colunas(pgEntrega, 0.46)
 
@@ -264,9 +266,25 @@ return function(App)
         })
 
         local buscando = false
+        local linhaAtivar = C.linha(cardComprador, 4, 28)
         local botaoAtivar = C.botao({
-            Parent = cardComprador, LayoutOrder = 4, Texto = "ATIVAR", Variante = "primario",
-            Size = UDim2.new(1, 0, 0, 28), TextSize = 12,
+            Parent = linhaAtivar, Texto = "ATIVAR", Variante = "primario",
+            Size = UDim2.new(0.62, -3, 1, 0), TextSize = 12,
+        })
+        local renderCasas
+        C.botao({
+            Parent = linhaAtivar, Texto = "+ FILA", Position = UDim2.new(0.62, 3, 0, 0),
+            Size = UDim2.new(0.38, -3, 1, 0), TextSize = 11,
+            OnClick = function()
+                local ok, msg = Fila.adicionar(caixaNick.Text, casaMarcada())
+                if ok then
+                    Utils.setStatus("Na fila: " .. #Fila.listar() .. " entrega(s). Marque a próxima casa ou abra a aba 📦", "info")
+                    E.casasSelecionadas = {}
+                    renderCasas()
+                else
+                    Utils.setStatus(msg, "aviso")
+                end
+            end,
         })
 
         local linhaControle = C.linha(cardComprador, 5, 24)
@@ -326,8 +344,6 @@ return function(App)
             contador.Text = se(marcada ~= nil, "vender: " .. tostring(marcada), #E.todasAsCasas .. " casa(s) // marque 1")
         end
 
-        local renderCasas
-
         local function criarLinhaCasa(casa, ordem)
             local marcada = E.casasSelecionadas[casa.nome] == true
             local linha = C.criar("TextButton", {
@@ -344,7 +360,14 @@ return function(App)
                     Size = UDim2.new(0, 4, 0, 4), BackgroundColor3 = Color3.new(1, 1, 1),
                 }, { C.canto(2) })
             end
+            local naFila = false
+            for _, p in ipairs(Fila.listar()) do
+                if p.casa == casa.nome then naFila = true end
+            end
             local textoLinha = (casa.icone or "🏠") .. " " .. Utils.escaparRich(casa.nome)
+            if naFila then
+                textoLinha ..= ' <font face="RobotoMono" size="9" color="#ff3898">[fila]</font>'
+            end
             if casa.detalhe and casa.detalhe ~= "" then
                 textoLinha ..= '  <font face="RobotoMono" size="9" color="#7c6e8c">' .. Utils.escaparRich(casa.detalhe) .. "</font>"
             end
@@ -400,6 +423,121 @@ return function(App)
                 end
             end)
         end)
+
+        local cardPedidos, cardControle = colunas(pgFila, 0.6)
+        semLista(cardPedidos)
+        C.cabecalho(cardPedidos, 0, nil, "Pedidos")
+        local contadorFila = C.texto({
+            Parent = cardPedidos, Size = UDim2.new(1, 0, 0, 14), TextXAlignment = Enum.TextXAlignment.Right,
+            Font = Tema.fonteMono, TextSize = 9, TextColor3 = Tema.suave, Text = "",
+        })
+        local fundoFila = C.criar("Frame", {
+            Parent = cardPedidos, BackgroundColor3 = Tema.painel2, Position = UDim2.new(0, 0, 0, 20),
+            Size = UDim2.new(1, 0, 1, -20),
+        }, { C.canto(5) })
+        local listaFila = scroll(fundoFila, { Size = UDim2.new(1, 0, 1, 0) })
+        C.padding(4).Parent = listaFila
+        C.lista(3).Parent = listaFila
+        local vazioFila = C.texto({
+            Parent = fundoFila, Size = UDim2.new(1, 0, 1, 0), TextXAlignment = Enum.TextXAlignment.Center,
+            Font = Tema.fonteMono, TextSize = 10, TextColor3 = Tema.apagado, TextWrapped = true,
+            Text = "fila vazia\n\nna aba 🚚: digite o @,\nmarque a casa e toque + FILA",
+        })
+
+        local CORES_PEDIDO = {
+            esperando = Tema.suave, entregando = Tema.rosa, erro = Tema.vermelho,
+            entregue = Tema.verde, pulado = Tema.amarelo,
+        }
+
+        C.cabecalho(cardControle, 1, nil, "Controle")
+        local textoFila = C.texto({
+            Parent = cardControle, LayoutOrder = 2, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+            TextWrapped = true, Font = Tema.fonteMono, TextSize = 10, TextColor3 = Tema.suave, Text = "",
+        })
+        local botaoIniciar = C.botao({
+            Parent = cardControle, LayoutOrder = 3, Texto = "INICIAR FILA", Variante = "primario",
+            Size = UDim2.new(1, 0, 0, 28), TextSize = 11,
+            OnClick = function()
+                if Fila.rodando() then Fila.parar() else Fila.iniciar() end
+            end,
+        })
+        local linhaFila = C.linha(cardControle, 4, 22)
+        C.botao({
+            Parent = linhaFila, Texto = "PULAR", Size = UDim2.new(0.5, -3, 1, 0), TextSize = 10,
+            OnClick = function() Fila.pular() end,
+        })
+        C.botao({
+            Parent = linhaFila, Texto = "LIMPAR", Position = UDim2.new(0.5, 3, 0, 0), Size = UDim2.new(0.5, -3, 1, 0),
+            TextSize = 10, OnClick = function() Fila.limpar() end,
+        })
+        C.cabecalho(cardControle, 5, nil, "Concluídos")
+        local listaFeitos = C.criar("Frame", {
+            Parent = cardControle, LayoutOrder = 6, BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+        }, { C.lista(2) })
+
+        local function renderFila()
+            for _, filho in ipairs(listaFila:GetChildren()) do
+                if filho:IsA("Frame") then filho:Destroy() end
+            end
+            local pedidos = Fila.listar()
+            for i, ped in ipairs(pedidos) do
+                local cor = CORES_PEDIDO[ped.estado] or Tema.suave
+                local linha = C.criar("Frame", {
+                    Parent = listaFila, LayoutOrder = i, BackgroundColor3 = Tema.painel,
+                    Size = UDim2.new(1, 0, 0, 30),
+                }, { C.canto(4) })
+                C.texto({
+                    Parent = linha, Text = string.format("%02d", i), Position = UDim2.new(0, 6, 0, 0),
+                    Size = UDim2.new(0, 18, 1, 0), Font = Tema.fonteMono, TextSize = 9, TextColor3 = Tema.apagado,
+                })
+                C.texto({
+                    Parent = linha, Text = "🏠 " .. ped.casa .. (ped.tipo and ("  ·  " .. ped.tipo) or ""),
+                    Position = UDim2.new(0, 26, 0, 2), Size = UDim2.new(1, -60, 0, 14), TextSize = 10,
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                })
+                C.texto({
+                    Parent = linha, Text = "@" .. ped.nick .. "  " .. string.upper(ped.estado) .. (ped.detalhe and (" · " .. ped.detalhe) or ""),
+                    Position = UDim2.new(0, 26, 0, 15), Size = UDim2.new(1, -60, 0, 12), Font = Tema.fonteMono,
+                    TextSize = 9, TextColor3 = cor, TextTruncate = Enum.TextTruncate.AtEnd,
+                })
+                if not (Fila.rodando() and i == 1) then
+                    C.botao({
+                        Parent = linha, Texto = "X", Position = UDim2.new(1, -26, 0.5, -10),
+                        Size = UDim2.new(0, 20, 0, 20), TextSize = 9,
+                        OnClick = function() Fila.remover(i) end,
+                    })
+                end
+            end
+            vazioFila.Visible = #pedidos == 0
+            contadorFila.Text = #pedidos .. " pedido(s)"
+
+            for _, filho in ipairs(listaFeitos:GetChildren()) do
+                if filho:IsA("TextLabel") then filho:Destroy() end
+            end
+            for i, f in ipairs(Fila.feitos()) do
+                if i > 5 then break end
+                C.texto({
+                    Parent = listaFeitos, LayoutOrder = i, Size = UDim2.new(1, 0, 0, 12), Font = Tema.fonteMono,
+                    TextSize = 9, TextColor3 = CORES_PEDIDO[f.estado] or Tema.suave, TextTruncate = Enum.TextTruncate.AtEnd,
+                    Text = f.hora .. " " .. f.casa .. " > @" .. f.nick,
+                })
+            end
+
+            if Fila.rodando() then
+                textoFila.Text = "> rodando: entregando uma por vez"
+                botaoIniciar.Text = "PARAR FILA"
+                C.pintar(botaoIniciar, Tema.vermelho)
+            else
+                textoFila.Text = "> parada"
+                botaoIniciar.Text = "INICIAR FILA"
+                C.pintar(botaoIniciar, Tema.rosa)
+            end
+        end
+        maid:Add(Fila.Mudou:Connect(function()
+            renderFila()
+            renderCasas()
+        end))
 
         local cardResumo, cardLista = colunas(pgHistorico, 0.32)
         C.cabecalho(cardResumo, 1, nil, "Resumo")
@@ -486,11 +624,14 @@ return function(App)
         maid:Add(Historico.Mudou:Connect(renderHistorico))
 
         local cardTrade, cardTempo = colunas(pgAjustes, 0.55)
-        cardTrade:FindFirstChildWhichIsA("UIListLayout").Padding = UDim.new(0, 3)
-        C.cabecalho(cardTrade, 1, nil, "Automação")
+        semLista(cardTrade)
+        C.cabecalho(cardTrade, 0, nil, "Automação")
+        local listaToggles = scroll(cardTrade, { Position = UDim2.new(0, 0, 0, 20), Size = UDim2.new(1, 0, 1, -20) })
+        C.padding(0, 6, 0, 0).Parent = listaToggles
+        C.lista(4).Parent = listaToggles
         local function toggle(ordem, chave, texto, descricao)
             C.toggle({
-                Parent = cardTrade, LayoutOrder = ordem, Texto = texto, Descricao = descricao, Valor = S[chave],
+                Parent = listaToggles, LayoutOrder = ordem, Texto = texto, Descricao = descricao, Valor = S[chave],
                 OnChange = function(v)
                     S[chave] = v
                     App.salvarAjustes()
@@ -503,6 +644,8 @@ return function(App)
         toggle(5, "CONFERIR_VENDA", "Conferir após listar", "confere a casa marcada")
         toggle(6, "RECUSAR_OUTROS", "Recusar outras pessoas", "desligado: só ignora")
         toggle(7, "VERIFICAR_CASA", "Conferir casa no trade", "só se a casa aparecer")
+        toggle(8, "MINIMIZAR_AUTO", "Minimizar ao trabalhar", "o menu sai da frente dos cliques")
+        toggle(9, "POPUPS", "Popups ao vivo", "mostra o que ele está fazendo")
 
         C.cabecalho(cardTempo, 1, nil, "Tempo")
         local function stepper(ordem, chave, texto, minimo, maximo, passo)
@@ -633,13 +776,13 @@ return function(App)
         })
 
         local rodadaDiag = 0
-        aoAbrirAba[4] = function()
+        aoAbrirAba[5] = function()
             rodadaDiag += 1
             local minha = rodadaDiag
             pcall(atualizarDiagnostico, true)
-            while gui.Parent and abaAtual == 4 and rodadaDiag == minha do
+            while gui.Parent and abaAtual == 5 and rodadaDiag == minha do
                 task.wait(1)
-                if abaAtual == 4 and rodadaDiag == minha then pcall(atualizarDiagnostico, false) end
+                if abaAtual == 5 and rodadaDiag == minha then pcall(atualizarDiagnostico, false) end
             end
         end
 
@@ -684,9 +827,9 @@ return function(App)
             end
         end
         maid:Add(Utils.RegistroMudou:Connect(function()
-            if abaAtual == 5 then renderRegistro() else registroSujo = true end
+            if abaAtual == 6 then renderRegistro() else registroSujo = true end
         end))
-        aoAbrirAba[5] = function()
+        aoAbrirAba[6] = function()
             if registroSujo then renderRegistro() end
         end
 
@@ -745,9 +888,11 @@ return function(App)
         pintarPontinho()
         maid:Add(Utils.EstadoMudou:Connect(pintarPontinho))
 
+        local hudRef
         local function mostrarJanela()
             bolha.Visible = false
             moldura.Visible = true
+            if hudRef then hudRef.Visible = false end
             pop()
         end
         local function mostrarBolha()
@@ -764,15 +909,62 @@ return function(App)
             end
         end))
 
+        local hud = C.criar("Frame", {
+            Parent = gui, Name = "Hud", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 46),
+            Size = UDim2.new(0, 0, 0, 24), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = Tema.fundo,
+            BackgroundTransparency = 0.08, Visible = false,
+        }, { C.canto(12), C.padding(0, 12, 0, 22), C.borda(Tema.rosa, 1, 0.35) })
+        local pontoHud = C.criar("Frame", {
+            Parent = hud, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, -13, 0.5, 0),
+            Size = UDim2.new(0, 6, 0, 6), BackgroundColor3 = Tema.rosa,
+        }, { C.canto(3) })
+        local textoHud = C.texto({
+            Parent = hud, Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X,
+            Font = Tema.fonteMono, TextSize = 10,
+        })
+        local contadorHud = 0
+        local function mostrarHud(texto, tipo)
+            if not S.POPUPS or moldura.Visible then
+                hud.Visible = false
+                return
+            end
+            if #texto > 70 then texto = string.sub(texto, 1, 67) .. "..." end
+            contadorHud += 1
+            local meu = contadorHud
+            local cor = Tema.status[tipo] or Tema.rosa
+            textoHud.Text = texto
+            textoHud.TextColor3 = se(tipo == "espera" or tipo == "info", Tema.texto, cor)
+            pontoHud.BackgroundColor3 = cor
+            hud.Visible = true
+            task.spawn(function()
+                local aceso = true
+                while contadorHud == meu and tipo == "espera" and hud.Visible do
+                    aceso = not aceso
+                    pontoHud.BackgroundTransparency = se(aceso, 0, 0.7)
+                    task.wait(0.45)
+                end
+                pontoHud.BackgroundTransparency = 0
+            end)
+            task.delay(se(tipo == "espera", 12, 5), function()
+                if contadorHud == meu then hud.Visible = false end
+            end)
+        end
+        hudRef = hud
+        maid:Add(Utils.StatusMudou:Connect(mostrarHud))
+
+        maid:Add(Utils.Trabalho:Connect(function()
+            if S.MINIMIZAR_AUTO and moldura.Visible then mostrarBolha() end
+        end))
+
         local function cobre(obj, ponto)
-            if not obj.Visible then return false end
+            if not obj or not obj.Visible then return false end
             local pos, tam = obj.AbsolutePosition, obj.AbsoluteSize
             return ponto.X >= pos.X and ponto.X <= pos.X + tam.X and ponto.Y >= pos.Y and ponto.Y <= pos.Y + tam.Y
         end
         Utils.esconderMenuSeCobrir = function(ponto)
             local escondidos = {}
-            for _, obj in ipairs({ moldura, bolha }) do
-                if cobre(obj, ponto) then
+            for _, obj in ipairs({ moldura, bolha, hud, gui:FindFirstChild("Toasts") or false }) do
+                if obj and cobre(obj, ponto) then
                     obj.Visible = false
                     table.insert(escondidos, obj)
                 end
@@ -788,6 +980,7 @@ return function(App)
         mostrarStatus(E.status, E.statusTipo)
         atualizarEstado()
         renderHistorico()
+        renderFila()
         pop()
 
         UI.gui = gui

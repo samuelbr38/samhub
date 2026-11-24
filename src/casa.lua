@@ -750,17 +750,22 @@ return function(App)
         return painel, lista, casas
     end
 
-    local function acharCartao(casas, nomeAlvo)
-        local base = Utils.normalizar(nomeAlvo)
-        local ordem = tonumber(string.match(nomeAlvo, "%((%d+)%)%s*$")) or 1
-        local vistos = 0
-        for _, casa in ipairs(casas) do
-            if Utils.normalizar(casa.nomeOriginal or casa.nome) == base then
-                vistos += 1
-                if vistos == ordem then return casa end
+    local function alvoDe(nome)
+        for _, c in ipairs(E.todasAsCasas) do
+            if c.nome == nome then
+                return { nome = c.nome, nomeOriginal = c.nomeOriginal or c.nome, tipo = c.tipoCasa }
             end
         end
-        return nil
+        return { nome = nome, nomeOriginal = (string.gsub(nome, "%s*%(%d+%)$", "")), tipo = nil }
+    end
+
+    local function candidatasDe(casas, alvo)
+        local base = Utils.normalizar(alvo.nomeOriginal or alvo.nome)
+        local lista = {}
+        for _, c in ipairs(casas) do
+            if Utils.normalizar(c.nomeOriginal or c.nome) == base then table.insert(lista, c) end
+        end
+        return lista
     end
 
     local function escolherNoPainel(painel, casas, casa)
@@ -776,16 +781,22 @@ return function(App)
         return nil
     end
 
-    local function verificarCasa(nomeAlvo)
+    local function verificarCasa(alvo)
         local painel, _, casas = abrirListaHomes()
         if not painel then return nil end
-        local casa = acharCartao(casas, nomeAlvo)
-        if not casa then
+        local candidatas = candidatasDe(casas, alvo)
+        if #candidatas == 0 then
             fecharPainel(painel)
             return nil, casas
         end
-        escolherNoPainel(painel, casas, casa)
-        local aVenda = vendaNaTela(painel)
+        local aVenda = false
+        for _, casa in ipairs(candidatas) do
+            escolherNoPainel(painel, casas, casa)
+            if vendaNaTela(painel) then
+                aVenda = true
+                break
+            end
+        end
         fecharPainel(painel)
         return aVenda, casas
     end
@@ -822,8 +833,10 @@ return function(App)
         local alvo = casaMarcada()
         local ok, a, b
         if alvo then
-            ok, a, b = pcall(verificarCasa, alvo)
+            Utils.trabalhando()
+            ok, a, b = pcall(verificarCasa, alvoDe(alvo))
         else
+            Utils.trabalhando()
             ok, a, b = pcall(descobrirAVenda)
         end
         ocupado = false
@@ -887,11 +900,21 @@ return function(App)
         return ok
     end
 
-    local function tipoEsperado(nome)
-        for _, c in ipairs(E.todasAsCasas) do
-            if c.nome == nome then return c.tipoCasa end
+    local function localizarCasa(painel, lista, casas, alvo)
+        local candidatas = candidatasDe(casas, alvo)
+        if #candidatas == 0 then return nil end
+        if not alvo.tipo then
+            local ordem = tonumber(string.match(alvo.nome, "%((%d+)%)%s*$")) or 1
+            return candidatas[ordem]
         end
-        return nil
+        local jaAVenda
+        for _, c in ipairs(candidatas) do
+            escolherNoPainel(painel, casas, c)
+            local lido = App.Scanner.lerTipo(painel, lista, c.nomeOriginal)
+            if lido and Utils.normalizar(lido) == Utils.normalizar(alvo.tipo) then return c, lido end
+            if not lido and vendaNaTela(painel) then jaAVenda = jaAVenda or c end
+        end
+        return jaAVenda
     end
 
     local function pertoDaCasa()
@@ -901,31 +924,22 @@ return function(App)
         return (raiz.Position - placa.posicao).Magnitude <= S.DISTANCIA_MAX_ANDAR
     end
 
-    local function prepararCasa(nomeAlvo)
+    local function prepararCasa(alvo)
         local painel, lista, casas = abrirListaHomes()
         if not painel then return false end
 
-        local casa = acharCartao(casas, nomeAlvo)
+        Utils.setStatus("Procurando a casa '" .. alvo.nome .. "'" .. (alvo.tipo and (" (" .. alvo.tipo .. ")") or "") .. "...", "espera")
+        local casa, lido = localizarCasa(painel, lista, casas, alvo)
         if not casa then
             local nomes = {}
             for _, c in ipairs(casas) do table.insert(nomes, c.nome) end
-            Utils.setStatus("Não achei '" .. nomeAlvo .. "' na lista HOMES (tem: " .. table.concat(nomes, ", ") .. ")", "erro")
+            Utils.setStatus("Não achei '" .. alvo.nome .. "'" .. (alvo.tipo and (" (" .. alvo.tipo .. ")") or "")
+                .. " na lista HOMES (tem: " .. table.concat(nomes, ", ") .. ")", "erro")
             fecharPainel(painel)
             return false
         end
-
-        Utils.setStatus("Escolhendo a casa '" .. casa.nome .. "'...", "espera")
         escolherNoPainel(painel, casas, casa)
-
-        local esperado = tipoEsperado(nomeAlvo)
-        local lido = App.Scanner.lerTipo(painel, lista, casa.nomeOriginal)
-        tipoAtual = lido or esperado or tipoAtual
-        if esperado and lido and Utils.normalizar(esperado) ~= Utils.normalizar(lido) then
-            fecharPainel(painel)
-            Utils.setStatus(string.format("Nessa posição está '%s' (%s), não '%s'. Escaneie de novo.",
-                casa.nome, lido, esperado), "erro")
-            return false
-        end
+        tipoAtual = lido or alvo.tipo or tipoAtual
 
         if vendaNaTela(painel) then
             fecharPainel(painel)
@@ -998,12 +1012,19 @@ return function(App)
         return false
     end
 
-    local function listar()
-        local alvo = casaMarcada()
-        if not alvo then
-            Utils.setStatus("Marque na lista qual casa vai vender", "aviso")
-            return false
+    local function listar(pedido)
+        local alvo
+        if pedido then
+            alvo = { nome = pedido.casa, nomeOriginal = pedido.nomeOriginal or pedido.casa, tipo = pedido.tipo }
+        else
+            local marcada = casaMarcada()
+            if not marcada then
+                Utils.setStatus("Marque na lista qual casa vai vender", "aviso")
+                return false
+            end
+            alvo = alvoDe(marcada)
         end
+        local nomeAlvo = alvo.nome
 
         local resultado = prepararCasa(alvo)
         if resultado == true then return true end
@@ -1012,7 +1033,7 @@ return function(App)
         task.wait(1)
         placaGuardada = nil
         if not pertoDaCasa() then
-            Utils.setStatus("Fui para '" .. alvo .. "', mas estou longe da casa. Toque na caixa de correio: eu continuo sozinho 📮", "aviso")
+            Utils.setStatus("Fui para '" .. nomeAlvo .. "', mas estou longe da casa. Toque na caixa de correio: eu continuo sozinho 📮", "aviso")
         end
 
         if not listarCasaAtual(S.ESPERA_SAIR_CASA) then return false end
@@ -1021,17 +1042,18 @@ return function(App)
         task.wait(1.5)
         local aVenda = verificarCasa(alvo)
         if aVenda == true then
-            Utils.setStatus("'" .. alvo .. "' à venda ✅", "ok")
+            Utils.setStatus("'" .. nomeAlvo .. "' à venda ✅", "ok")
             return true
         end
-        Utils.setStatus("Listei, mas '" .. alvo .. "' não aparece como à venda. Confira na lista HOMES.", "erro")
+        Utils.setStatus("Listei, mas '" .. nomeAlvo .. "' não aparece como à venda. Confira na lista HOMES.", "erro")
         return false
     end
 
-    function Casa.listarParaTroca()
+    function Casa.listarParaTroca(pedido)
         if ocupado then return false end
         ocupado = true
-        local ok, resultado = pcall(listar)
+        Utils.trabalhando()
+        local ok, resultado = pcall(listar, pedido)
         ocupado = false
         if not ok then
             Utils.aviso("casa: " .. tostring(resultado))

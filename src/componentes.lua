@@ -273,12 +273,12 @@ return function(App)
         local area = gui:FindFirstChild("Toasts")
         if not area then
             area = C.criar("Frame", {
-                Name = "Toasts", Parent = gui, BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 1),
-                Position = UDim2.new(1, -12, 1, -12), Size = UDim2.new(0, 240, 1, -24),
+                Name = "Toasts", Parent = gui, BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0),
+                Position = UDim2.new(0.5, 0, 0, 76), Size = UDim2.new(0, 260, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
             }, {
                 C.criar("UIListLayout", {
-                    SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6),
-                    VerticalAlignment = Enum.VerticalAlignment.Bottom,
+                    SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4),
+                    HorizontalAlignment = Enum.HorizontalAlignment.Center,
                 }),
             })
         end

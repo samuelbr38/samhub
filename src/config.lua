@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "6.3"
+Config.VERSAO = "6.4"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -37,6 +37,9 @@ Config.SAMHUB = {
     CAIXA_OBJETO            = nil,
     MAX_CANDIDATOS_CAIXA    = 3,
 
+    TEXTOS_AVISO_TRADE = { "be careful when trading", "you may get scammed", "only use the trade menu" },
+    TEXTO_OKAY         = { "Okay", "OK", "Ok", "Got it", "Entendi" },
+
     PALAVRAS_PEDIDO = { "trade request", "sent you a trade", "trade", "troca", "trocar", "negociar" },
 
     RECUSAR_OUTROS    = true,
@@ -44,6 +47,8 @@ Config.SAMHUB = {
     VERIFICAR_CASA    = false,
     LISTAR_AO_ATIVAR  = true,
     ANDAR_ATE_CAIXA   = true,
+    MINIMIZAR_AUTO    = true,
+    POPUPS            = true,
     CONFERIR_VENDA    = true,
     TEMPO_ESTAVEL     = 1.5,
     DELAY_MIN         = 0.8,
@@ -62,7 +67,7 @@ Config.SAMHUB = {
 
 Config.AJUSTES_SALVOS = {
     "RECUSAR_OUTROS", "ACEITAR_PEDIDO", "VERIFICAR_CASA", "LISTAR_AO_ATIVAR",
-    "ANDAR_ATE_CAIXA", "CONFERIR_VENDA", "CAIXAS", "CAIXA_OBJETO",
+    "ANDAR_ATE_CAIXA", "CONFERIR_VENDA", "CAIXAS", "CAIXA_OBJETO", "MINIMIZAR_AUTO", "POPUPS",
     "TEMPO_ESTAVEL", "DELAY_MIN", "DELAY_MAX",
 }
 

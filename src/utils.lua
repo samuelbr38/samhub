@@ -62,6 +62,11 @@ return function(App)
 
     Utils.StatusMudou = Utils.Sinal()
     Utils.EstadoMudou = Utils.Sinal()
+    Utils.Trabalho = Utils.Sinal()
+
+    function Utils.trabalhando()
+        Utils.Trabalho:Fire()
+    end
 
     Utils.registro = {}
     Utils.RegistroMudou = Utils.Sinal()
@@ -294,6 +299,7 @@ return function(App)
     Utils.esconderMenuSeCobrir = nil
     Utils.metodoClique = nil
     Utils.ultimoClique = 0
+    Utils.ignorarTextoAoRedor = false
 
     function Utils.temProibida(texto)
         texto = string.lower(Utils.limpar(texto or ""))
@@ -318,7 +324,7 @@ return function(App)
         local objetos = objetosNoPonto(p)
         local primeiroBotao, alvoNoPonto = nil, false
         for _, o in ipairs(objetos) do
-            if (o:IsA("TextLabel") or o:IsA("TextButton")) and Utils.temProibida(o.Text) then
+            if not Utils.ignorarTextoAoRedor and (o:IsA("TextLabel") or o:IsA("TextButton")) and Utils.temProibida(o.Text) then
                 return false, "texto proibido no ponto: " .. o.Text
             end
             if not primeiroBotao and o:IsA("GuiButton") then primeiroBotao = o end

@@ -215,6 +215,7 @@ return function(App)
         if lista then
             casas, modo = lerCartoes(lista), "cartões"
             if S.LER_TIPO_CASA and painel and #casas > 0 then
+                Utils.trabalhando()
                 pcall(lerTipos, painel, lista, casas)
             end
         else

@@ -6,6 +6,7 @@ return function(App)
     local PlayerGui = Eu:WaitForChild("PlayerGui")
 
     local Trade = {}
+    Trade.Terminou = Utils.Sinal()
     local rodando = false
 
     local function jogadorExato(texto)
@@ -173,6 +174,7 @@ return function(App)
     local function aceitarPedido()
         local botao, quadro, comprador = acharPedido()
         if not botao then return false end
+        Utils.trabalhando()
         Utils.esperar()
         local ok, metodo = Utils.clicar(botao, quadro)
         if ok then
@@ -331,6 +333,7 @@ return function(App)
             E.casasSelecionadas = {}
             desativar()
             Utils.setStatus("Trade com @" .. jogador.Name .. " finalizado! Confira se a casa saiu.", "ok")
+            Trade.Terminou:Fire("finalizado", jogador.Name)
         else
             Historico.registrar(jogador.Name, jogador.UserId, "cancelado", "fechou antes de confirmar")
             Utils.setStatus("O trade fechou antes de confirmar. Aguardando de novo...", "aviso")
@@ -354,6 +357,34 @@ return function(App)
         }
     end
 
+    local function avisoDeSeguranca()
+        for _, d in ipairs(PlayerGui:GetDescendants()) do
+            if d:IsA("TextLabel") and Utils.temAlguma(string.lower(d.Text), S.TEXTOS_AVISO_TRADE) and Utils.naTela(d) then
+                local quadro = d.Parent
+                for _ = 1, 5 do
+                    if not quadro or quadro:IsA("LayerCollector") then break end
+                    local ok = Utils.acharBotao(quadro, S.TEXTO_OKAY)
+                    if ok then return ok, quadro end
+                    quadro = quadro.Parent
+                end
+            end
+        end
+        return nil
+    end
+
+    local function fecharAvisoDeSeguranca()
+        local botao, quadro = avisoDeSeguranca()
+        if not botao then return false end
+        Utils.trabalhando()
+        Utils.setStatus("Aviso do trade: apertando Okay...", "espera")
+        Utils.ignorarTextoAoRedor = true
+        local ok = Utils.clicar(botao, quadro)
+        Utils.ignorarTextoAoRedor = false
+        task.wait(0.5)
+        return ok
+    end
+    Trade.fecharAvisoDeSeguranca = fecharAvisoDeSeguranca
+
     function Trade.iniciar()
         if rodando then return end
         rodando = true
@@ -362,8 +393,10 @@ return function(App)
                 task.wait(0.5)
                 if E.userIdAlvo and not E.pausado then
                     local ok, err = pcall(function()
+                        if fecharAvisoDeSeguranca() then return end
                         local janela, jogador, texto, erro = lerJanela()
                         if janela then
+                            Utils.trabalhando()
                             processar(janela, jogador, texto, erro)
                         elseif S.ACEITAR_PEDIDO then
                             aceitarPedido()

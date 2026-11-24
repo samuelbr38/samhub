@@ -2,7 +2,7 @@ local REPO = "https://raw.githubusercontent.com/samuelbr38/samhub/refs/heads/mai
 
 local MODO_DEV = false
 
-local MODULOS = { "config", "tema", "utils", "historico", "scanner", "mapeador", "casa", "trade", "componentes", "ui" }
+local MODULOS = { "config", "tema", "utils", "historico", "scanner", "mapeador", "casa", "trade", "fila", "componentes", "ui" }
 
 local env = (typeof(getgenv) == "function" and getgenv()) or _G
 if env.SAMHUB and env.SAMHUB.fechar then
@@ -62,6 +62,7 @@ App.Scanner   = modulo("scanner")(App)
 App.Mapeador  = modulo("mapeador")(App)
 App.Casa      = modulo("casa")(App)
 App.Trade     = modulo("trade")(App)
+App.Fila      = modulo("fila")(App)
 App.C         = modulo("componentes")(App)
 App.UI        = modulo("ui")(App)
 
@@ -87,6 +88,7 @@ local function carregarAjustes()
 end
 
 function App.fechar()
+    App.Fila.parar()
     App.Trade.parar()
     App.Casa.pararVigia()
     maid:Clean()
