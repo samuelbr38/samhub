@@ -680,9 +680,42 @@ return function(App)
         return unica
     end
 
+    local function painelAberto(painel)
+        return painel and painel.Parent ~= nil and Utils.naTela(painel)
+    end
+
+    local function botaoNoCanto(painel)
+        local pos, tam = painel.AbsolutePosition, painel.AbsoluteSize
+        local canto = Vector2.new(pos.X + tam.X, pos.Y)
+        local melhor, menor = nil, math.huge
+        for _, d in ipairs(painel:GetDescendants()) do
+            if d:IsA("GuiButton") and Utils.naTela(d) then
+                local texto = Utils.normalizar(Utils.textoDe(d))
+                if texto == "" or texto == "x" then
+                    local centro = d.AbsolutePosition + d.AbsoluteSize / 2
+                    local perto = (canto.X - centro.X) < tam.X * 0.15 and (centro.Y - canto.Y) < tam.Y * 0.15
+                    local distancia = (centro - canto).Magnitude
+                    if perto and distancia < menor then melhor, menor = d, distancia end
+                end
+            end
+        end
+        return melhor
+    end
+
     local function fecharPainel(painel)
-        local x = Utils.acharBotao(painel, { "X", "Close", "Fechar" }, { "close", "exit", "fechar" })
-        if x then Utils.clicar(x, painel) end
+        for _ = 1, 3 do
+            if not painelAberto(painel) then return true end
+            local x = Utils.acharBotao(painel, { "X", "✕", "×", "Close", "Fechar" }, { "close", "exit", "fechar", "xbutton" })
+                or botaoNoCanto(painel)
+            if not x then break end
+            Utils.clicar(x, painel)
+            esperar(function() return not painelAberto(painel) end, 1.5)
+        end
+        if painelAberto(painel) then
+            warn("[SAMHUB] não consegui fechar o painel " .. painel:GetFullName())
+            return false
+        end
+        return true
     end
 
     local function abrirListaHomes()
@@ -915,6 +948,10 @@ return function(App)
             Utils.setStatus("Indo para a casa '" .. casa.nome .. "' (Go!)...", "espera")
             local _, raiz = personagem()
             local antes = raiz and raiz.Position
+            local placaAntes = Casa.acharPlaca()
+            local modeloAntes = modeloDaCasa(placaAntes)
+            local chaveAntes = chaveDaCasa(placaAntes)
+
             if not Utils.clicar(mudar, painel) then
                 Utils.setStatus("Não consegui apertar o Go! (veja F9)", "erro")
                 return false
@@ -925,18 +962,28 @@ return function(App)
                 return false
             end
             confirmarDialogo(2, { "move", "change", "go to" })
-            local deuCerto = esperar(function()
+
+            local trocou = esperar(function()
                 local _, r = personagem()
-                local moveu = r and antes and (r.Position - antes).Magnitude > 15
-                return moveu or not (painel.Parent and Utils.visivel(painel))
-            end, 8)
-            if Utils.cancelarDialogoPerigoso() or not deuCerto then
-                Utils.setStatus("O Go! não fez efeito. Parei por segurança.", "erro")
+                if r and antes and (r.Position - antes).Magnitude > 15 then return true end
+                if modeloAntes and not modeloAntes.Parent then return true end
+                local placa = Casa.acharPlaca()
+                if placa and modeloDaCasa(placa) ~= modeloAntes then return true end
+                return placa ~= nil and chaveDaCasa(placa) ~= chaveAntes
+            end, 6)
+            if Utils.cancelarDialogoPerigoso() then
+                Utils.setStatus("Apareceu janela de vender depois do Go!. Cancelei e parei.", "erro")
                 return false
             end
-            task.wait(1.5)
-            if painel.Parent and Utils.visivel(painel) then fecharPainel(painel) end
+
+            task.wait(0.8)
+            fecharPainel(painel)
             placaGuardada = nil
+            if trocou then
+                Utils.setStatus("Casa trocada para '" .. casa.nome .. "'. Indo pôr à venda...", "espera")
+            else
+                Utils.setStatus("'" .. casa.nome .. "' já parece ser a casa atual. Indo pôr à venda...", "espera")
+            end
             return "mudou"
         end
 

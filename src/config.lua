@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "6.1"
+Config.VERSAO = "6.2"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
