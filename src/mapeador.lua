@@ -41,6 +41,10 @@ return function(App)
         return linhas
     end
 
+    function Mapeador.mapearObjeto(raiz, titulo, arquivo)
+        entregar(titulo, arvore(raiz), arquivo)
+    end
+
     function Mapeador.mapearTrade()
         local app = PlayerGui:FindFirstChild(S.NOME_JANELA_TRADE, true)
         if not app then

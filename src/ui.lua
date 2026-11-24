@@ -344,8 +344,11 @@ return function(App)
         })
 
         local function atualizarContador()
-            contador.Text = contarSelecionadas() .. " de " .. #E.todasAsCasas .. " selecionada(s)"
+            local marcada = next(E.casasSelecionadas)
+            contador.Text = marcada and ("vender: " .. marcada) or (#E.todasAsCasas .. " casa(s) · marque 1")
         end
+
+        local renderCasas
 
         local function criarLinhaCasa(casa, ordem)
             local linha = C.criar("TextButton", {
@@ -386,13 +389,13 @@ return function(App)
                 if Trade.estado() ~= "inativo" then
                     return Utils.setStatus("Desative antes de mudar as casas", "aviso")
                 end
-                E.casasSelecionadas[casa.nome] = (not E.casasSelecionadas[casa.nome]) or nil
-                desenhar()
-                atualizarContador()
+                local jaMarcada = E.casasSelecionadas[casa.nome] == true
+                E.casasSelecionadas = jaMarcada and {} or { [casa.nome] = true }
+                renderCasas()
             end)
         end
 
-        local function renderCasas()
+        renderCasas = function()
             for _, filho in ipairs(listaCasas:GetChildren()) do
                 if filho:IsA("TextButton") then filho:Destroy() end
             end
@@ -419,7 +422,7 @@ return function(App)
                 return Utils.setStatus("Digite o @username do comprador", "aviso")
             end
             if contarSelecionadas() == 0 then
-                return Utils.setStatus("Marque a casa que vai vender (lista ao lado)", "aviso")
+                return Utils.setStatus("Marque a casa que vai vender (toque nela na lista)", "aviso")
             end
             buscando = true
             botaoAtivar.Text = "Buscando..."
@@ -541,7 +544,7 @@ return function(App)
         toggle(2, "ACEITAR_PEDIDO", "Aceitar pedido", "Accept no aviso dele")
         toggle(3, "LISTAR_AO_ATIVAR", "Pôr à venda ao ativar", "Usa a caixa de correio")
         toggle(4, "ANDAR_ATE_CAIXA", "Andar até a caixa", "Só até o lugar aprendido")
-        toggle(5, "CONFERIR_VENDA", "Conferir após listar", "Acha a casa com Unlist")
+        toggle(5, "CONFERIR_VENDA", "Conferir após listar", "Confere a casa marcada")
         toggle(6, "RECUSAR_OUTROS", "Recusar outras pessoas", "Desligado: só ignora")
         toggle(7, "VERIFICAR_CASA", "Conferir casa no trade", "Só se a casa aparecer")
 
@@ -573,6 +576,11 @@ return function(App)
             Parent = cardTempo, LayoutOrder = 8, Size = UDim2.new(1, 0, 0, 16), TextSize = 11,
             TextColor3 = se(Utils.temArquivos, Tema.verde, Tema.amarelo),
             Text = se(Utils.temArquivos, "●  Ajustes salvos em arquivo", "●  Executor não salva arquivos"),
+        })
+        C.botao({
+            Parent = cardTempo, LayoutOrder = 9, Texto = "🗑  Esquecer a caixa de correio",
+            Size = UDim2.new(1, 0, 0, 30), TextSize = 11,
+            OnClick = function() Casa.esquecerCaixas() end,
         })
 
         local cardExec, cardJogo = colunas(pgDiag, 0.5)
@@ -653,10 +661,14 @@ return function(App)
                     dCaixa("menu aberto", true)
                 elseif c.botaoE then
                     dCaixa("botão E na tela", true)
+                elseif c.objeto then
+                    dCaixa(string.format("conhecida · %.0f studs", c.distanciaObjeto or 0), true)
                 elseif c.salva then
-                    dCaixa(string.format("aprendida · %.0f studs", c.distanciaSalva or 0), true)
+                    dCaixa(string.format("lugar aprendido · %.0f studs", c.distanciaSalva or 0), true)
+                elseif c.placa and c.candidatos > 0 then
+                    dCaixa(c.candidatos .. " possível(is) · vou procurar", nil)
                 elseif c.placa then
-                    dCaixa("toque nela 1 vez", nil)
+                    dCaixa("não achei · toque nela 1 vez", false)
                 else
                     dCaixa("não achei sua casa", false)
                 end

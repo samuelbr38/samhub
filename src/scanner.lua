@@ -11,7 +11,7 @@ return function(App)
         if l == "" or #texto > S.TAMANHO_MAX_NOME then return false end
         if Config.IGNORAR[l] or Config.PLACEHOLDERS[l] then return false end
         for _, proibida in ipairs(Config.NUNCA_CLICAR) do
-            if string.find(l, proibida, 1, true) then return false end
+            if Utils.temPalavra(l, proibida) then return false end
         end
         if string.find(l, "^[%d%s%.,%$/:%%x+-]+$") then return false end
         if string.find(l, "%d+%s*/%s*%d+") then return false end
@@ -155,11 +155,68 @@ return function(App)
         return casas
     end
 
+    local function esperarAte(fn, segundos)
+        local t = 0
+        while not fn() and t < segundos do
+            task.wait(0.15)
+            t += 0.15
+        end
+    end
+
+    local EXCLUIR_TIPO = { "paint color", "listed for trade", "can't edit", "cant edit" }
+
+    function Scanner.lerTipo(painel, lista, nomeCasa)
+        local nome = Utils.normalizar(nomeCasa or "")
+        local melhor, reserva
+        for _, d in ipairs(painel:GetDescendants()) do
+            if d:IsA("TextLabel") and Utils.naTela(d) and not d:IsDescendantOf(lista)
+                and not d:FindFirstAncestorWhichIsA("GuiButton") then
+                local texto = Utils.limpar(d.Text)
+                local l = Utils.normalizar(texto)
+                if l ~= nome and not Config.TITULOS_LISTA_CASAS[l] and textoValido(texto)
+                    and not Utils.temAlguma(l, EXCLUIR_TIPO) then
+                    if Utils.temAlguma(l, Config.PALAVRAS_CASA) then
+                        melhor = melhor or texto
+                    else
+                        reserva = reserva or texto
+                    end
+                end
+            end
+        end
+        return melhor or reserva
+    end
+
+    local function lerTipos(painel, lista, casas)
+        for i, casa in ipairs(casas) do
+            if casa.cartao.Parent and Utils.naTela(casa.cartao) then
+                Utils.setStatus(string.format("Lendo o tipo das casas (%d/%d)...", i, #casas), "espera")
+                local antes = Utils.assinatura(painel)
+                Utils.clicar(casa.cartao, painel)
+                esperarAte(function() return Utils.assinatura(painel) ~= antes end, 1.2)
+                task.wait(0.2)
+                local tipo = Scanner.lerTipo(painel, lista, casa.nomeOriginal)
+                if tipo then
+                    casa.tipoCasa = tipo
+                    if casa.detalhe == "" then casa.detalhe = tipo end
+                    casa.icone = icone(casa.nomeOriginal .. " " .. tipo)
+                end
+                local textos = string.lower(Utils.textos(painel))
+                if Utils.acharBotao(painel, S.TEXTO_DESLISTAR) or string.find(textos, "listed for trade", 1, true) then
+                    casa.aVenda = true
+                    casa.detalhe = "🔖 à venda"
+                end
+            end
+        end
+    end
+
     function Scanner.escanear()
-        local _, lista = Scanner.acharPainel()
+        local painel, lista = Scanner.acharPainel()
         local casas, modo
         if lista then
             casas, modo = lerCartoes(lista), "cartões"
+            if S.LER_TIPO_CASA and painel and #casas > 0 then
+                pcall(lerTipos, painel, lista, casas)
+            end
         else
             casas, modo = lerPorPalavras(), "palavras-chave"
         end

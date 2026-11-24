@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "5.6"
+Config.VERSAO = "6.0"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -21,6 +21,8 @@ Config.SAMHUB = {
     TEXTO_TROCAR_CASA      = { "Change House", "Trocar de casa", "Mudar de casa" },
     TEXTO_MENU_CAIXA_EXTRA = { "Throw Party", "Lock Door", "Unlock Door", "Change House" },
     CONFIRMAR_LISTAGEM     = { "Yes", "Confirm", "OK", "Okay", "Sim", "Confirmar" },
+    TEXTO_MUDAR_PARA_CASA  = { "Go!", "Go", "Ir", "Move In", "Move Here", "Change House", "Spawn Here", "Set as Spawn", "Set Spawn",
+                               "Live Here", "Select", "Choose", "Use House", "Set Home", "Mudar", "Escolher", "Morar aqui" },
     PALAVRAS_A_VENDA       = { "unlist", "for trade", "listed", "à venda" },
     PADROES_PLACA_CASA     = { "%s's house", "casa de %s" },
     TECLA_INTERAGIR        = Enum.KeyCode.E,
@@ -28,9 +30,13 @@ Config.SAMHUB = {
     DISTANCIA_CAIXA_CORREIO = 60,
     DISTANCIA_PERTO         = 6,
     ESPERA_CAIXA_CORREIO    = 25,
+    ESPERA_SAIR_CASA        = 90,
+    LER_TIPO_CASA           = true,
     TEMPO_MAX_ANDANDO       = 40,
     DISTANCIA_MAX_ANDAR     = 150,
-    OFFSET_CAIXA            = nil,
+    CAIXAS                  = {},
+    CAIXA_OBJETO            = nil,
+    MAX_CANDIDATOS_CAIXA    = 3,
 
     PALAVRAS_PEDIDO = { "trade request", "sent you a trade", "trade", "troca", "trocar", "negociar" },
 
@@ -57,7 +63,7 @@ Config.SAMHUB = {
 
 Config.AJUSTES_SALVOS = {
     "RECUSAR_OUTROS", "ACEITAR_PEDIDO", "VERIFICAR_CASA", "LISTAR_AO_ATIVAR",
-    "ANDAR_ATE_CAIXA", "CONFERIR_VENDA", "OFFSET_CAIXA",
+    "ANDAR_ATE_CAIXA", "CONFERIR_VENDA", "CAIXAS", "CAIXA_OBJETO",
     "TEMPO_ESTAVEL", "DELAY_MIN", "DELAY_MAX",
 }
 
@@ -72,7 +78,10 @@ Config.TITULOS_LISTA_CASAS = {
 
 Config.PALAVRAS_CASA = { "house", "home", "casa", "mansion", "castle", "apartment", "iglu", "igloo", "farm", "cabin" }
 
-Config.NUNCA_CLICAR = { "build", "buy", "comprar", "construir", "robux", "purchase" }
+Config.NUNCA_CLICAR = {
+    "build", "buy", "comprar", "construir", "robux", "purchase",
+    "sell", "vender", "unlist", "paint", "delete", "apagar", "rename",
+}
 
 Config.IGNORAR = {
     ["home"] = true, ["house"] = true, ["casa"] = true, ["houses"] = true, ["casas"] = true,
@@ -88,7 +97,7 @@ Config.TIPOS = {
     { "apartment",    "🏢" }, { "iglu",      "❄️" }, { "igloo",   "❄️" },
     { "farm",         "🌾" }, { "wooden",    "🪵" }, { "queenslander", "🏡" },
     { "treehouse",    "🌳" }, { "moon",      "🌙" }, { "ice cream", "🍦" },
-    { "toyshop",      "🧸" }, { "ranch",     "🐎" }, { "cottage", "🏡" },
+    { "toyshop",      "🧸" }, { "ranch",     "🐎" }, { "cottage", "🏡" }, { "gingerbread", "🍪" },
 }
 
 Config.Estado = {
