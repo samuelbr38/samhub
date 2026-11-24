@@ -63,8 +63,32 @@ return function(App)
     Utils.StatusMudou = Utils.Sinal()
     Utils.EstadoMudou = Utils.Sinal()
 
+    Utils.registro = {}
+    Utils.RegistroMudou = Utils.Sinal()
+
+    function Utils.log(texto, tipo)
+        table.insert(Utils.registro, 1, { hora = os.date("%H:%M:%S"), texto = tostring(texto), tipo = tipo or "info" })
+        while #Utils.registro > 120 do table.remove(Utils.registro) end
+        Utils.RegistroMudou:Fire()
+    end
+
+    function Utils.aviso(texto)
+        warn("[SAMHUB] " .. tostring(texto))
+        Utils.log("⚠ " .. tostring(texto), "aviso")
+    end
+
+    function Utils.textoRegistro()
+        local linhas = {}
+        for i = #Utils.registro, 1, -1 do
+            local r = Utils.registro[i]
+            table.insert(linhas, "[" .. r.hora .. "] " .. r.texto)
+        end
+        return table.concat(linhas, "\n")
+    end
+
     function Utils.setStatus(texto, tipo)
         tipo = tipo or "info"
+        if Config.Estado.status ~= texto then Utils.log(texto, tipo) end
         Config.Estado.status = texto
         Config.Estado.statusTipo = tipo
         Utils.StatusMudou:Fire(texto, tipo)
@@ -340,17 +364,17 @@ return function(App)
 
         local ok, motivo = pontoSeguro(pGui, alvo)
         if not ok then
-            warn("[SAMHUB] clique cancelado: " .. tostring(motivo))
+            Utils.aviso("clique cancelado: " .. tostring(motivo))
             return fim(false)
         end
         local tela = moverPara(pGui)
         if not tela then
-            warn("[SAMHUB] clique cancelado: não consegui pôr o mouse no lugar certo")
+            Utils.aviso("clique cancelado: não consegui pôr o mouse no lugar certo")
             return fim(false)
         end
         ok, motivo = pontoSeguro(Vector2.new(mouse.X, mouse.Y), alvo)
         if not ok then
-            warn("[SAMHUB] clique cancelado (onde o mouse está): " .. tostring(motivo))
+            Utils.aviso("clique cancelado (onde o mouse está): " .. tostring(motivo))
             return fim(false)
         end
 
@@ -430,13 +454,13 @@ return function(App)
         { nome = "mouse", fn = cliqueMouse },
     }
 
-    function Utils.clicar(botao, raiz)
+    function Utils.clicar(botao, raiz, confirmar, espera)
         raiz = raiz or botao:FindFirstAncestorWhichIsA("LayerCollector") or botao
         if not botao.Parent or not Utils.naTela(botao) then return false, nil end
 
         local proibida = Utils.temProibida(Utils.textoDe(botao))
         if proibida then
-            warn("[SAMHUB] clique bloqueado por segurança (" .. proibida .. "): " .. botao:GetFullName())
+            Utils.aviso("clique bloqueado por segurança (" .. proibida .. "): " .. botao:GetFullName())
             return false, nil
         end
 
@@ -446,16 +470,25 @@ return function(App)
         end
 
         for i, metodo in ipairs(ordem) do
-            if i > 1 and (not botao.Parent or not Utils.naTela(botao)) then
-                return true, Utils.metodoClique
+            if i > 1 then
+                if confirmar and confirmar() then return true, Utils.metodoClique end
+                if not confirmar and (not botao.Parent or not Utils.naTela(botao)) then
+                    return true, Utils.metodoClique
+                end
             end
             local antes = Utils.assinatura(raiz)
             if metodo.fn(botao) then
                 local t = 0
-                while t < 1.5 do
+                while t < (espera or 1.5) do
                     task.wait(0.15)
                     t += 0.15
-                    if not botao.Parent or not Utils.naTela(botao) or Utils.assinatura(raiz) ~= antes then
+                    local deu
+                    if confirmar then
+                        deu = confirmar()
+                    else
+                        deu = not botao.Parent or not Utils.naTela(botao) or Utils.assinatura(raiz) ~= antes
+                    end
+                    if deu then
                         Utils.metodoClique = metodo.nome
                         return true, metodo.nome
                     end
@@ -496,7 +529,7 @@ return function(App)
     function Utils.cancelarDialogoPerigoso()
         local quadro, nao, texto = Utils.dialogoPerigoso()
         if not nao then return false end
-        warn("[SAMHUB] janela perigosa cancelada: " .. tostring(texto))
+        Utils.aviso("janela perigosa cancelada: " .. tostring(texto))
         Utils.clicar(nao, quadro)
         Utils.setStatus("Cancelei uma janela perigosa: \"" .. tostring(texto) .. "\"", "erro")
         return true

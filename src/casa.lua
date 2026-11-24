@@ -628,7 +628,7 @@ return function(App)
         local botaoConfirmar, quadro = achado[1], achado[2]
         local proibida = Utils.temPerigo(Utils.textos(quadro))
         if proibida then
-            warn("[SAMHUB] não confirmei (" .. proibida .. "): " .. Utils.textos(quadro))
+            Utils.aviso("não confirmei (" .. proibida .. "): " .. Utils.textos(quadro))
             Utils.cancelarDialogoPerigoso()
             Utils.setStatus("Apareceu uma janela de '" .. proibida .. "'. NÃO confirmei e cancelei.", "erro")
             return false
@@ -712,7 +712,7 @@ return function(App)
             esperar(function() return not painelAberto(painel) end, 1.5)
         end
         if painelAberto(painel) then
-            warn("[SAMHUB] não consegui fechar o painel " .. painel:GetFullName())
+            Utils.aviso("não consegui fechar o painel " .. painel:GetFullName())
             return false
         end
         return true
@@ -828,8 +828,8 @@ return function(App)
         end
         ocupado = false
         if not ok then
-            warn("[SAMHUB] conferir: " .. tostring(a))
-            Utils.setStatus("Erro ao conferir a venda (veja F9)", "erro")
+            Utils.aviso("conferir: " .. tostring(a))
+            Utils.setStatus("Erro ao conferir a venda (veja Registro)", "erro")
             return nil
         end
 
@@ -880,9 +880,9 @@ return function(App)
             confirmarDialogo(2.5)
             Utils.setStatus("Casa atual à venda (" .. tostring(metodo) .. ")", "ok")
         else
-            warn(string.format("[SAMHUB] List for Trade não respondeu: %s [%s] texto=%q",
+            Utils.aviso(string.format("List for Trade não respondeu: %s [%s] texto=%q",
                 itemListar:GetFullName(), itemListar.ClassName, Utils.textoDe(itemListar)))
-            Utils.setStatus("Achei o List for Trade, mas nem a tecla nem o clique funcionaram (veja F9)", "erro")
+            Utils.setStatus("Achei o List for Trade, mas nem a tecla nem o clique funcionaram (veja Registro)", "erro")
         end
         return ok
     end
@@ -952,25 +952,30 @@ return function(App)
             local modeloAntes = modeloDaCasa(placaAntes)
             local chaveAntes = chaveDaCasa(placaAntes)
 
-            if not Utils.clicar(mudar, painel) then
-                Utils.setStatus("Não consegui apertar o Go! (veja F9)", "erro")
-                return false
+            local ultimaBusca, resposta = 0, false
+            local function trocou()
+                if resposta then return true end
+                local _, r = personagem()
+                if r and antes and (r.Position - antes).Magnitude > 15 then resposta = true end
+                if modeloAntes and not modeloAntes.Parent then resposta = true end
+                if not resposta and os.clock() - ultimaBusca > 1 then
+                    ultimaBusca = os.clock()
+                    local placa = Casa.acharPlaca()
+                    if placa and (modeloDaCasa(placa) ~= modeloAntes or chaveDaCasa(placa) ~= chaveAntes) then
+                        resposta = true
+                    end
+                end
+                return resposta
             end
+
+            local apertou = Utils.clicar(mudar, painel, trocou, 4)
             task.wait(0.4)
             if Utils.cancelarDialogoPerigoso() then
                 Utils.setStatus("Algo deu errado no Go! (apareceu janela de vender). Cancelei e parei.", "erro")
                 return false
             end
-            confirmarDialogo(2, { "move", "change", "go to" })
-
-            local trocou = esperar(function()
-                local _, r = personagem()
-                if r and antes and (r.Position - antes).Magnitude > 15 then return true end
-                if modeloAntes and not modeloAntes.Parent then return true end
-                local placa = Casa.acharPlaca()
-                if placa and modeloDaCasa(placa) ~= modeloAntes then return true end
-                return placa ~= nil and chaveDaCasa(placa) ~= chaveAntes
-            end, 6)
+            confirmarDialogo(1.5, { "move", "change", "go to" })
+            if not apertou then esperar(trocou, 2) end
             if Utils.cancelarDialogoPerigoso() then
                 Utils.setStatus("Apareceu janela de vender depois do Go!. Cancelei e parei.", "erro")
                 return false
@@ -979,7 +984,7 @@ return function(App)
             task.wait(0.8)
             fecharPainel(painel)
             placaGuardada = nil
-            if trocou then
+            if trocou() then
                 Utils.setStatus("Casa trocada para '" .. casa.nome .. "'. Indo pôr à venda...", "espera")
             else
                 Utils.setStatus("'" .. casa.nome .. "' já parece ser a casa atual. Indo pôr à venda...", "espera")
@@ -988,7 +993,7 @@ return function(App)
         end
 
         App.Mapeador.mapearObjeto(painel, "PAINEL HOMES (" .. casa.nome .. ")", "samhub_mapa_homes.txt")
-        Utils.setStatus("Não achei como colocar '" .. casa.nome .. "' à venda nesse painel. Mapa no F9: me mande.", "erro")
+        Utils.setStatus("Não achei como colocar '" .. casa.nome .. "' à venda nesse painel. Mapa copiado: me mande.", "erro")
         fecharPainel(painel)
         return false
     end
@@ -1029,8 +1034,8 @@ return function(App)
         local ok, resultado = pcall(listar)
         ocupado = false
         if not ok then
-            warn("[SAMHUB] casa: " .. tostring(resultado))
-            Utils.setStatus("Erro ao colocar a casa à venda (veja F9)", "erro")
+            Utils.aviso("casa: " .. tostring(resultado))
+            Utils.setStatus("Erro ao colocar a casa à venda (veja Registro)", "erro")
             return false
         end
         return resultado
@@ -1101,7 +1106,7 @@ return function(App)
         print(saida)
         local copiou = Utils.copiar(saida)
         Utils.salvarTexto("samhub_mapa_caixa.txt", saida)
-        Utils.setStatus("Mapa da caixa no F9" .. (copiou and " e copiado" or ""), "info")
+        Utils.setStatus("Mapa da caixa" .. (copiou and " copiado: cole no chat" or " salvo em samhub_mapa_caixa.txt"), "info")
     end
 
     return Casa

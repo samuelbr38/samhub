@@ -370,8 +370,8 @@ return function(App)
                         end
                     end)
                     if not ok then
-                        warn("[SAMHUB] " .. tostring(err))
-                        Utils.setStatus("Erro interno (veja F9)", "erro")
+                        Utils.aviso("" .. tostring(err))
+                        Utils.setStatus("Erro interno (veja Registro)", "erro")
                     end
                 end
             end

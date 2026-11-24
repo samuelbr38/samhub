@@ -1,37 +1,34 @@
 local Tema = {
-    fundo    = Color3.fromRGB(15, 11, 17),
-    lateral  = Color3.fromRGB(21, 15, 24),
-    painel   = Color3.fromRGB(26, 19, 30),
-    painel2  = Color3.fromRGB(36, 26, 41),
-    hover    = Color3.fromRGB(48, 34, 55),
-    borda    = Color3.fromRGB(60, 42, 66),
+    fundo    = Color3.fromRGB(9, 8, 13),
+    lateral  = Color3.fromRGB(13, 11, 18),
+    painel   = Color3.fromRGB(17, 14, 23),
+    painel2  = Color3.fromRGB(24, 20, 32),
+    hover    = Color3.fromRGB(33, 27, 44),
+    borda    = Color3.fromRGB(44, 34, 56),
 
-    rosa       = Color3.fromRGB(236, 98, 162),
-    rosaClaro  = Color3.fromRGB(244, 170, 206),
-    rosaEscuro = Color3.fromRGB(176, 66, 124),
-    lilas      = Color3.fromRGB(176, 130, 236),
+    rosa       = Color3.fromRGB(255, 56, 152),
+    rosaClaro  = Color3.fromRGB(255, 138, 198),
+    rosaEscuro = Color3.fromRGB(150, 24, 92),
+    lilas      = Color3.fromRGB(139, 92, 246),
 
-    verde    = Color3.fromRGB(72, 214, 142),
-    amarelo  = Color3.fromRGB(255, 198, 80),
-    vermelho = Color3.fromRGB(255, 88, 104),
+    verde    = Color3.fromRGB(60, 230, 150),
+    amarelo  = Color3.fromRGB(255, 196, 70),
+    vermelho = Color3.fromRGB(255, 76, 96),
 
-    texto    = Color3.fromRGB(250, 238, 247),
-    suave    = Color3.fromRGB(184, 156, 180),
-    apagado  = Color3.fromRGB(112, 90, 112),
-
-    rosaFundo  = Color3.fromRGB(46, 22, 42),
-    fundoFim   = Color3.fromRGB(24, 12, 27),
+    texto    = Color3.fromRGB(236, 232, 244),
+    suave    = Color3.fromRGB(150, 140, 166),
+    apagado  = Color3.fromRGB(88, 80, 104),
 
     fonte      = Enum.Font.Gotham,
     fonteMedia = Enum.Font.GothamMedium,
     fonteForte = Enum.Font.GothamBold,
-    fonteFofa  = Enum.Font.FredokaOne,
+    fonteMono  = Enum.Font.RobotoMono,
 
-    raio          = 12,
-    largura       = 700,
-    altura        = 430,
-    larguraLateral = 176,
-    alturaTopo    = 56,
+    raio           = 6,
+    largura        = 520,
+    altura         = 320,
+    larguraLateral = 46,
+    alturaTopo     = 38,
 }
 
 Tema.destaque = Tema.rosa
@@ -42,10 +39,11 @@ Tema.status = {
     aviso  = Tema.amarelo,
     erro   = Tema.vermelho,
     espera = Tema.rosa,
+    debug  = Tema.apagado,
 }
 
 Tema.icones = {
-    info = "💗", ok = "✅", aviso = "⚠️", erro = "❌", espera = "⏳",
+    info = "[i]", ok = "[ok]", aviso = "[!]", erro = "[x]", espera = "[..]", debug = "[#]",
 }
 
 return Tema
