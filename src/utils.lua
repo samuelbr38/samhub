@@ -91,6 +91,12 @@ return function(App)
         return table.concat(linhas, "\n")
     end
 
+    Utils.Notificou = Utils.Sinal()
+    function Utils.notificar(texto, tipo)
+        Utils.log(texto, tipo or "info")
+        Utils.Notificou:Fire(texto, tipo or "info")
+    end
+
     function Utils.setStatus(texto, tipo)
         tipo = tipo or "info"
         if Config.Estado.status ~= texto then Utils.log(texto, tipo) end
@@ -265,6 +271,7 @@ return function(App)
         if obj.Parent and obj.Parent:IsA("GuiObject") then return obj.Parent end
         return obj
     end
+    Utils.alvoDoTexto = alvoDoTexto
 
     function Utils.acharBotao(pai, textos, nomes)
         local alvos = normalizados(textos or {})
@@ -431,22 +438,43 @@ return function(App)
     local function cliqueSelecao(botao)
         if not VIM or not botao:IsA("GuiButton") then return false end
         local anterior = GuiService.SelectedObject
+        local eraSelecionavel = botao.Selectable
+        local function devolver()
+            pcall(function()
+                botao.Selectable = eraSelecionavel
+                if anterior and anterior.Parent and anterior ~= botao then
+                    GuiService.SelectedObject = anterior
+                else
+                    GuiService.SelectedObject = nil
+                end
+            end)
+        end
         local selecionou = pcall(function()
             botao.Selectable = true
             GuiService.SelectedObject = botao
         end)
         task.wait(0.03)
-        if not selecionou or GuiService.SelectedObject ~= botao then return false end
+        if not selecionou or GuiService.SelectedObject ~= botao then
+            devolver()
+            return false
+        end
         Utils.ultimoClique = os.clock()
         local ok = pcall(function()
             VIM:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
             task.wait(0.05)
             VIM:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
         end)
-        task.delay(0.1, function()
-            pcall(function() GuiService.SelectedObject = anterior end)
-        end)
+        task.delay(0.1, devolver)
         return ok
+    end
+
+    function Utils.limparSelecao(raiz)
+        pcall(function()
+            local sel = GuiService.SelectedObject
+            if sel and (not raiz or sel == raiz or raiz:IsAncestorOf(sel) or not sel.Parent or not Utils.naTela(sel)) then
+                GuiService.SelectedObject = nil
+            end
+        end)
     end
 
     local function cliqueMouse(botao)
@@ -460,14 +488,14 @@ return function(App)
         { nome = "mouse", fn = cliqueMouse },
     }
 
-    function Utils.clicar(botao, raiz, confirmar, espera)
+    function Utils.clicar(botao, raiz, confirmar, espera, maxDisparos)
         raiz = raiz or botao:FindFirstAncestorWhichIsA("LayerCollector") or botao
-        if not botao.Parent or not Utils.naTela(botao) then return false, nil end
+        if not botao.Parent or not Utils.naTela(botao) then return false, nil, 0 end
 
         local proibida = Utils.temProibida(Utils.textoDe(botao))
         if proibida then
             Utils.aviso("clique bloqueado por segurança (" .. proibida .. "): " .. botao:GetFullName())
-            return false, nil
+            return false, nil, 0
         end
 
         local ordem = {}
@@ -475,15 +503,20 @@ return function(App)
             if m.nome == Utils.metodoClique then table.insert(ordem, 1, m) else table.insert(ordem, m) end
         end
 
-        for i, metodo in ipairs(ordem) do
-            if i > 1 then
-                if confirmar and confirmar() then return true, Utils.metodoClique end
+        local disparos, ultimo = 0, nil
+        for _, metodo in ipairs(ordem) do
+            if maxDisparos and disparos >= maxDisparos then break end
+            if disparos > 0 then
+                if confirmar and confirmar() then return true, ultimo, disparos end
                 if not confirmar and (not botao.Parent or not Utils.naTela(botao)) then
-                    return true, Utils.metodoClique
+                    return true, ultimo, disparos
                 end
+                if not botao.Parent then break end
             end
             local antes = Utils.assinatura(raiz)
             if metodo.fn(botao) then
+                disparos += 1
+                ultimo = metodo.nome
                 local t = 0
                 while t < (espera or 1.5) do
                     task.wait(0.15)
@@ -496,12 +529,12 @@ return function(App)
                     end
                     if deu then
                         Utils.metodoClique = metodo.nome
-                        return true, metodo.nome
+                        return true, metodo.nome, disparos
                     end
                 end
             end
         end
-        return false, nil
+        return false, nil, disparos
     end
 
     function Utils.temPerigo(texto)

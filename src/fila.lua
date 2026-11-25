@@ -17,6 +17,7 @@ return function(App)
     function Fila.listar() return pedidos end
     function Fila.feitos() return feitos end
     function Fila.rodando() return rodando end
+    function Fila.temProximo() return rodando and not pular and pedidos[2] ~= nil end
 
     function Fila.adicionar(nick, nomeCasa)
         nick = string.gsub(Utils.limpar(nick or ""), "^@", "")
@@ -100,13 +101,16 @@ return function(App)
         end
         Utils.setStatus(string.format("Fila: '%s' pronta. Esperando @%s mandar o trade...", p.casa, p.nick), "espera")
 
-        local resultado
-        local conexao = App.Trade.Terminou:Connect(function(r) resultado = r end)
+        local resultado, problema
+        local conexao = App.Trade.Terminou:Connect(function(r, _, p) resultado, problema = r, p end)
         while rodando and not pular and not resultado do
             task.wait(0.5)
         end
         conexao:Disconnect()
 
+        if resultado == "conferir" then
+            return "erro", "trade feito, mas " .. tostring(problema)
+        end
         if resultado then return "entregue" end
         App.Trade.desativar()
         if pular then return "pulado" end
@@ -148,13 +152,14 @@ return function(App)
                     if estado == "entregue" then
                         Utils.setStatus("Fila: '" .. p.casa .. "' entregue para @" .. p.nick .. " ✅", "ok")
                     end
-                    if pedidos[1] then task.wait(3) end
+                    if pedidos[1] then task.wait(S.CONFERIR_ENTREGA and 1 or 3) end
                 end
             end
             if rodando and not pedidos[1] then
                 Utils.setStatus("Fila concluída! " .. feitosNaRodada .. " entrega(s) 🎉", "ok")
             end
             rodando = false
+            pcall(App.Casa.fecharHomesSeDeixei)
             avisar()
         end)
     end

@@ -105,6 +105,9 @@ return function(App)
             Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, W, 0, H),
         })
         C.sombra(moldura, UDim2.new(1, 0, 1, 0), UDim2.new(0.5, 0, 0.5, 3), nil, 8)
+        local function janelaAberta()
+            return moldura.Visible or moldura:GetAttribute("SamhubEscondido") == true
+        end
         local janela = C.criar("Frame", {
             Parent = moldura, BackgroundColor3 = Tema.fundo, ClipsDescendants = true,
             Size = UDim2.new(1, 0, 1, 0), ZIndex = 1,
@@ -646,6 +649,8 @@ return function(App)
         toggle(7, "VERIFICAR_CASA", "Conferir casa no trade", "só se a casa aparecer")
         toggle(8, "MINIMIZAR_AUTO", "Minimizar ao trabalhar", "o menu sai da frente dos cliques")
         toggle(9, "POPUPS", "Popups ao vivo", "mostra o que ele está fazendo")
+        toggle(10, "CONFERIR_ENTREGA", "Conferir após o trade", "a casa sumiu da lista MY HOMES?")
+        toggle(11, "AUTO_CASH_OUT", "Cash Out automático", "cheque do banco: marca e saca")
 
         C.cabecalho(cardTempo, 1, nil, "Tempo")
         local function stepper(ordem, chave, texto, minimo, maximo, passo)
@@ -842,6 +847,9 @@ return function(App)
             mostrarStatus(texto, tipo)
             if tipo == "ok" or tipo == "erro" then C.toast(gui, texto, tipo) end
         end))
+        maid:Add(Utils.Notificou:Connect(function(texto, tipo)
+            if S.POPUPS or janelaAberta() then C.toast(gui, texto, tipo) end
+        end))
 
         local ESTADOS = {
             ativo = { "● ON", Tema.verde },
@@ -888,16 +896,22 @@ return function(App)
         pintarPontinho()
         maid:Add(Utils.EstadoMudou:Connect(pintarPontinho))
 
+        local function definirVisivel(obj, valor)
+            if not obj then return end
+            obj:SetAttribute("SamhubEscondido", nil)
+            obj.Visible = valor
+        end
+
         local hudRef
         local function mostrarJanela()
-            bolha.Visible = false
-            moldura.Visible = true
-            if hudRef then hudRef.Visible = false end
+            definirVisivel(bolha, false)
+            definirVisivel(moldura, true)
+            definirVisivel(hudRef, false)
             pop()
         end
         local function mostrarBolha()
-            moldura.Visible = false
-            bolha.Visible = true
+            definirVisivel(moldura, false)
+            definirVisivel(bolha, true)
         end
         arrastavel(bolha, bolha, maid, mostrarJanela)
         botaoMin.MouseButton1Click:Connect(mostrarBolha)
@@ -905,7 +919,7 @@ return function(App)
 
         maid:Add(UIS.InputBegan:Connect(function(input, processado)
             if not processado and input.KeyCode == S.TECLA_MENU then
-                if moldura.Visible then mostrarBolha() else mostrarJanela() end
+                if janelaAberta() then mostrarBolha() else mostrarJanela() end
             end
         end))
 
@@ -924,8 +938,8 @@ return function(App)
         })
         local contadorHud = 0
         local function mostrarHud(texto, tipo)
-            if not S.POPUPS or moldura.Visible then
-                hud.Visible = false
+            if not S.POPUPS or janelaAberta() then
+                definirVisivel(hud, false)
                 return
             end
             if #texto > 70 then texto = string.sub(texto, 1, 67) .. "..." end
@@ -935,7 +949,7 @@ return function(App)
             textoHud.Text = texto
             textoHud.TextColor3 = se(tipo == "espera" or tipo == "info", Tema.texto, cor)
             pontoHud.BackgroundColor3 = cor
-            hud.Visible = true
+            definirVisivel(hud, true)
             task.spawn(function()
                 local aceso = true
                 while contadorHud == meu and tipo == "espera" and hud.Visible do
@@ -946,14 +960,14 @@ return function(App)
                 pontoHud.BackgroundTransparency = 0
             end)
             task.delay(se(tipo == "espera", 12, 5), function()
-                if contadorHud == meu then hud.Visible = false end
+                if contadorHud == meu then definirVisivel(hud, false) end
             end)
         end
         hudRef = hud
         maid:Add(Utils.StatusMudou:Connect(mostrarHud))
 
         maid:Add(Utils.Trabalho:Connect(function()
-            if S.MINIMIZAR_AUTO and moldura.Visible then mostrarBolha() end
+            if S.MINIMIZAR_AUTO and janelaAberta() then mostrarBolha() end
         end))
 
         local function cobre(obj, ponto)
@@ -965,13 +979,19 @@ return function(App)
             local escondidos = {}
             for _, obj in ipairs({ moldura, bolha, hud, gui:FindFirstChild("Toasts") or false }) do
                 if obj and cobre(obj, ponto) then
+                    obj:SetAttribute("SamhubEscondido", true)
                     obj.Visible = false
                     table.insert(escondidos, obj)
                 end
             end
             if #escondidos == 0 then return nil end
             return function()
-                for _, obj in ipairs(escondidos) do obj.Visible = true end
+                for _, obj in ipairs(escondidos) do
+                    if obj.Parent and obj:GetAttribute("SamhubEscondido") then
+                        obj:SetAttribute("SamhubEscondido", nil)
+                        obj.Visible = true
+                    end
+                end
             end
         end
         maid:Add(function() Utils.esconderMenuSeCobrir = nil end)

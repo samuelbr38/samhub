@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "6.5"
+Config.VERSAO = "6.6"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -46,6 +46,10 @@ Config.SAMHUB = {
     TEXTOS_AVISO_TRADE = { "be careful when trading", "you may get scammed", "only use the trade menu" },
     TEXTO_OKAY         = { "Okay", "OK", "Ok", "Got it", "Entendi" },
 
+    TEXTO_CASH_OUT     = { "Cash Out", "Cash out", "Sacar" },
+    TEXTOS_CHEQUE      = { "do not show again", "bank of adopt me", "pay to the order", "playing adopt me" },
+    TEXTOS_NAO_MOSTRAR = { "do not show again", "don't show again", "dont show again", "não mostrar" },
+
     PALAVRAS_PEDIDO = { "trade request", "sent you a trade", "trade", "troca", "trocar", "negociar" },
 
     RECUSAR_OUTROS    = true,
@@ -56,6 +60,8 @@ Config.SAMHUB = {
     MINIMIZAR_AUTO    = true,
     POPUPS            = true,
     CONFERIR_VENDA    = true,
+    CONFERIR_ENTREGA  = true,
+    AUTO_CASH_OUT     = true,
     TEMPO_ESTAVEL     = 1.5,
     DELAY_MIN         = 0.8,
     DELAY_MAX         = 2.5,
@@ -74,7 +80,7 @@ Config.SAMHUB = {
 Config.AJUSTES_SALVOS = {
     "RECUSAR_OUTROS", "ACEITAR_PEDIDO", "VERIFICAR_CASA", "LISTAR_AO_ATIVAR",
     "ANDAR_ATE_CAIXA", "CONFERIR_VENDA", "CAIXAS", "CAIXA_OBJETO", "MINIMIZAR_AUTO", "POPUPS",
-    "TEMPO_ESTAVEL", "DELAY_MIN", "DELAY_MAX",
+    "TEMPO_ESTAVEL", "DELAY_MIN", "DELAY_MAX", "CONFERIR_ENTREGA", "AUTO_CASH_OUT",
 }
 
 Config.PLACEHOLDERS = {

@@ -292,6 +292,34 @@ return function(App)
     end
     Trade.sucessoNaTela = sucessoNaTela
 
+    local function entregaConcluida(nick, userId)
+        local marcada = next(E.casasSelecionadas)
+        local detalhe, problema = "casa entregue ✅", nil
+        if S.CONFERIR_ENTREGA and App.Casa and App.Casa.conferirEntrega then
+            local manter = App.Fila and App.Fila.temProximo and App.Fila.temProximo() or false
+            local saiu, msg = App.Casa.conferirEntrega(marcada, manter)
+            if saiu == true then
+                detalhe = "casa entregue ✅ (saiu da lista)"
+            elseif saiu == false then
+                detalhe = "⚠️ trade feito, mas a casa ainda aparece na lista"
+                problema = msg
+            else
+                detalhe = "casa entregue ✅ (lista não conferida)"
+                Utils.aviso("não conferi a lista depois do trade: " .. tostring(msg))
+            end
+        end
+        Historico.registrar(nick, userId, "finalizado", detalhe)
+        E.casasSelecionadas = {}
+        desativar()
+        if problema then
+            Utils.setStatus("Trade com @" .. nick .. " feito, mas " .. problema .. ". Confira!", "erro")
+            Trade.Terminou:Fire("conferir", nick, problema)
+        else
+            Utils.setStatus("Casa entregue para @" .. nick .. "! ✅", "ok")
+            Trade.Terminou:Fire("finalizado", nick)
+        end
+    end
+
     local function processar(janela, jogador, texto, erro)
         if not (jogador and jogador.UserId == E.userIdAlvo) then
             local nome = jogador and jogador.Name or texto or "?"
@@ -381,11 +409,7 @@ return function(App)
                 Utils.aviso("a mensagem de sucesso não cita @" .. jogador.Name .. ": " .. mensagem)
             end
             Utils.clicar(nice, quadro)
-            Historico.registrar(jogador.Name, jogador.UserId, "finalizado", "casa entregue ✅")
-            E.casasSelecionadas = {}
-            desativar()
-            Utils.setStatus("Casa entregue para @" .. jogador.Name .. "! ✅", "ok")
-            Trade.Terminou:Fire("finalizado", jogador.Name)
+            entregaConcluida(jogador.Name, jogador.UserId)
         elseif janelaTrade() == janela then
             Utils.setStatus("@" .. jogador.Name .. " ainda não confirmou. Termine manualmente.", "aviso")
         else
@@ -453,12 +477,7 @@ return function(App)
                             Utils.clicar(nice, quadro)
                             local msg = string.lower(mensagem)
                             if Utils.temPalavra(msg, string.lower(E.nickAlvo)) then
-                                Historico.registrar(E.nickAlvo, E.userIdAlvo, "finalizado", "casa entregue ✅")
-                                local nick = E.nickAlvo
-                                E.casasSelecionadas = {}
-                                desativar()
-                                Utils.setStatus("Casa entregue para @" .. nick .. "! ✅", "ok")
-                                Trade.Terminou:Fire("finalizado", nick)
+                                entregaConcluida(E.nickAlvo, E.userIdAlvo)
                             else
                                 Utils.aviso("apertei Nice numa mensagem que não é do comprador: " .. mensagem)
                             end

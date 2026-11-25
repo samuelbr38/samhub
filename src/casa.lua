@@ -75,31 +75,64 @@ return function(App)
         return terreno
     end
 
-    function Casa.acharPlaca()
+    local labelPlaca, pastaPlaca = nil, nil
+
+    local function alvosPlaca()
         local alvos = {}
         for _, padrao in ipairs(S.PADROES_PLACA_CASA) do
             table.insert(alvos, string.format(padrao, string.lower(Eu.Name)))
             table.insert(alvos, string.format(padrao, string.lower(Eu.DisplayName)))
         end
-        for _, raizBusca in ipairs({ PlayerGui, workspace }) do
+        return alvos
+    end
+
+    local function ehPlaca(d, alvos)
+        if not d:IsA("TextLabel") then return false end
+        local texto = Utils.normalizar(d.Text)
+        for _, alvo in ipairs(alvos) do
+            if string.find(texto, alvo, 1, true) then return true end
+        end
+        return false
+    end
+
+    local function placaDe(d)
+        local placa = d:FindFirstAncestorWhichIsA("BillboardGui")
+        local peca = placa and (placa.Adornee or placa.Parent)
+        local referencia = cframeDe(peca)
+        if not referencia then return nil end
+        return {
+            posicao = referencia:PointToWorldSpace(placa.StudsOffsetWorldSpace),
+            referencia = referencia,
+            peca = peca,
+            placa = placa,
+            terreno = terrenoDe(peca),
+        }
+    end
+
+    function Casa.acharPlaca()
+        local alvos = alvosPlaca()
+        if labelPlaca and labelPlaca.Parent and ehPlaca(labelPlaca, alvos) then
+            local p = placaDe(labelPlaca)
+            if p then return p end
+        end
+        labelPlaca = nil
+
+        local lugares = {}
+        if pastaPlaca and pastaPlaca.Parent then table.insert(lugares, pastaPlaca) end
+        table.insert(lugares, PlayerGui)
+        table.insert(lugares, workspace)
+        for _, raizBusca in ipairs(lugares) do
             for _, d in ipairs(raizBusca:GetDescendants()) do
-                if d:IsA("TextLabel") then
-                    local texto = Utils.normalizar(d.Text)
-                    for _, alvo in ipairs(alvos) do
-                        if string.find(texto, alvo, 1, true) then
-                            local placa = d:FindFirstAncestorWhichIsA("BillboardGui")
-                            local peca = placa and (placa.Adornee or placa.Parent)
-                            local referencia = cframeDe(peca)
-                            if referencia then
-                                return {
-                                    posicao = referencia:PointToWorldSpace(placa.StudsOffsetWorldSpace),
-                                    referencia = referencia,
-                                    peca = peca,
-                                    placa = placa,
-                                    terreno = terrenoDe(peca),
-                                }
-                            end
+                if ehPlaca(d, alvos) then
+                    local p = placaDe(d)
+                    if p then
+                        labelPlaca = d
+                        if p.placa:IsDescendantOf(PlayerGui) then
+                            pastaPlaca = p.placa.Parent
+                        elseif p.terreno and p.terreno.Parent and p.terreno.Parent ~= workspace then
+                            pastaPlaca = p.terreno.Parent
                         end
+                        return p
                     end
                 end
             end
@@ -167,14 +200,25 @@ return function(App)
         return (avo and avo.Name or "") == a.avo
     end
 
+    local caixaGuardada, buscaMundoCaixa = nil, 0
     function Casa.acharCaixaPorObjeto(placa)
         local a = S.CAIXA_OBJETO
         if type(a) ~= "table" or type(a.nome) ~= "string" or not placa then return nil end
         local centro = placa.referencia.Position
+
+        local g = caixaGuardada
+        if g and g.Parent and bateAssinatura(g, a) then
+            local p = posicaoDe(g)
+            if p and (p - centro).Magnitude < S.DISTANCIA_CAIXA_CORREIO then return p, g end
+        end
+        caixaGuardada = nil
+
         local melhor, menor = nil, S.DISTANCIA_CAIXA_CORREIO
         local modelo = modeloDaCasa(placa)
-        for _, lugar in ipairs({ modelo or false, workspace }) do
+        local mundo = os.clock() - buscaMundoCaixa > 20 and workspace or false
+        for _, lugar in ipairs({ modelo or false, placa.terreno or false, mundo }) do
             if lugar then
+                if lugar == workspace then buscaMundoCaixa = os.clock() end
                 for _, d in ipairs(lugar:GetDescendants()) do
                     if bateAssinatura(d, a) then
                         local p = posicaoDe(d)
@@ -184,6 +228,7 @@ return function(App)
                 if melhor then break end
             end
         end
+        caixaGuardada = melhor
         return melhor and posicaoDe(melhor), melhor
     end
 
@@ -293,7 +338,8 @@ return function(App)
         return placaGuardada
     end
 
-    local candidatosE = {}
+    local candidatosE = setmetatable({}, { __mode = "k" })
+    local coletaMundoE = 0
 
     local function registrarE(d)
         if (d:IsA("TextLabel") or d:IsA("TextButton")) and Utils.normalizar(d.Text) == "e" then
@@ -303,13 +349,15 @@ return function(App)
 
     local function coletarE(incluirMundo)
         for _, d in ipairs(PlayerGui:GetDescendants()) do registrarE(d) end
-        if incluirMundo then
+        if typeof(incluirMundo) == "Instance" then
+            for _, d in ipairs(incluirMundo:GetDescendants()) do registrarE(d) end
+        elseif incluirMundo then
             for _, d in ipairs(workspace:GetDescendants()) do registrarE(d) end
         end
     end
 
     local function alvoDoE(label)
-        if not label.Parent then
+        if not label.Parent or Utils.normalizar(label.Text) ~= "e" then
             candidatosE[label] = nil
             return nil
         end
@@ -504,8 +552,12 @@ return function(App)
             adicionar(candidatos[i].pos, false, "procurando (" .. candidatos[i].obj.Name .. ")")
         end
 
-        candidatosE = {}
-        coletarE(true)
+        if os.clock() - coletaMundoE > 30 then
+            coletaMundoE = os.clock()
+            coletarE(true)
+        else
+            coletarE(placa.terreno or modeloDaCasa(placa) or false)
+        end
         for _, d in ipairs(destinos) do
             local e, pos = acharE(d.pos)
             if e then return e, pos, true end
@@ -603,7 +655,7 @@ return function(App)
         return Utils.clicar(item)
     end
 
-    local function confirmarDialogo(segundos, palavras)
+    local function confirmarDialogo(segundos, palavras, pronto)
         palavras = palavras or { "trade", "list" }
         local alvos = {}
         for _, t in ipairs(S.CONFIRMAR_LISTAGEM) do alvos[Utils.normalizar(t)] = true end
@@ -623,8 +675,13 @@ return function(App)
             end
             return nil
         end
-        local achado = esperar(achar, segundos or 2.5)
-        if not achado then return false end
+        local achado = esperar(function()
+            local a = achar()
+            if a then return a end
+            if pronto and pronto() then return "pronto" end
+            return nil
+        end, segundos or 2.5)
+        if not achado or achado == "pronto" then return false end
         local botaoConfirmar, quadro = achado[1], achado[2]
         local proibida = Utils.temPerigo(Utils.textos(quadro))
         if proibida then
@@ -702,26 +759,82 @@ return function(App)
         return melhor
     end
 
-    local function fecharPainel(painel)
-        for _ = 1, 3 do
-            if not painelAberto(painel) then return true end
-            local x = Utils.acharBotao(painel, { "X", "✕", "×", "Close", "Fechar" }, { "close", "exit", "fechar", "xbutton" })
-                or botaoNoCanto(painel)
-            if not x then break end
-            Utils.clicar(x, painel)
-            esperar(function() return not painelAberto(painel) end, 1.5)
+    local function acharX(painel)
+        return Utils.acharBotao(painel, { "X", "✕", "×", "Close", "Fechar" }, { "close", "exit", "fechar", "xbutton" })
+            or botaoNoCanto(painel)
+    end
+
+    local function fotoPainel(painel)
+        local partes = { tostring(painel.AbsolutePosition), tostring(painel.AbsoluteSize), tostring(Utils.visivel(painel)) }
+        local atual = painel
+        while atual and not atual:IsA("LayerCollector") do
+            if atual:IsA("CanvasGroup") then table.insert(partes, string.format("%.2f", atual.GroupTransparency)) end
+            local escala = atual:FindFirstChildWhichIsA("UIScale")
+            if escala then table.insert(partes, string.format("%.2f", escala.Scale)) end
+            atual = atual.Parent
         end
-        if painelAberto(painel) then
+        return table.concat(partes, "|")
+    end
+
+    local function tituloDoPainel(painel)
+        for _, d in ipairs(painel:GetDescendants()) do
+            if d:IsA("TextLabel") and Config.TITULOS_LISTA_CASAS[string.lower(Utils.limpar(d.Text))] then return d end
+        end
+        return nil
+    end
+
+    local function painelFechado(painel, titulo)
+        if not painelAberto(painel) then return true end
+        return titulo ~= nil and (not titulo.Parent or not Utils.naTela(titulo))
+    end
+
+    local function fecharPainel(painel)
+        if not painel then return true end
+        local titulo = tituloDoPainel(painel)
+        if painelFechado(painel, titulo) then return true end
+
+        local anterior, parado = nil, 0
+        for _ = 1, 10 do
+            local agora = fotoPainel(painel) .. "#" .. Utils.assinatura(painel)
+            if agora == anterior then
+                parado += 1
+                if parado >= 2 then break end
+            else
+                parado = 0
+            end
+            anterior = agora
+            task.wait(0.1)
+        end
+
+        for tentativa = 1, 2 do
+            if painelFechado(painel, titulo) then break end
+            local x = acharX(painel)
+            if not x then
+                Utils.aviso("não achei o X do painel " .. painel:GetFullName())
+                break
+            end
+            local foto = fotoPainel(painel)
+            local ok = Utils.clicar(x, painel, function()
+                return painelFechado(painel, titulo) or fotoPainel(painel) ~= foto
+            end, 1.2, tentativa == 1 and 2 or 1)
+            esperar(function() return painelFechado(painel, titulo) end, ok and 2 or 0.5)
+            Utils.limparSelecao(painel)
+        end
+        Utils.limparSelecao(painel)
+        if not painelFechado(painel, titulo) then
             Utils.aviso("não consegui fechar o painel " .. painel:GetFullName())
             return false
         end
         return true
     end
 
-    local function abrirListaHomes()
+    local deixeiHomesAberta = false
+
+    local function abrirListaHomes(espera)
+        deixeiHomesAberta = false
         local painel, lista = App.Scanner.acharPainel()
         if not lista then
-            if not Casa.abrirMenu() then
+            if not Casa.abrirMenu(espera) then
                 Utils.setStatus("Não consegui abrir a caixa de correio", "aviso")
                 return nil
             end
@@ -746,7 +859,7 @@ return function(App)
             Utils.setStatus("Não achei as casinhas na lista HOMES", "aviso")
             return nil
         end
-        task.wait(0.4)
+        task.wait(0.2)
         return painel, lista, casas
     end
 
@@ -773,7 +886,7 @@ return function(App)
         local antes = Utils.assinatura(painel)
         Utils.clicar(casa.cartao, painel)
         esperar(function() return Utils.assinatura(painel) ~= antes end, 1.5)
-        task.wait(0.3)
+        task.wait(0.2)
     end
 
     local function casaMarcada()
@@ -887,10 +1000,10 @@ return function(App)
             return false
         end
 
-        task.wait(0.3)
+        task.wait(0.15)
         local ok, metodo = apertarItem(itemListar)
         if ok then
-            confirmarDialogo(2.5)
+            confirmarDialogo(2, nil, function() return botao(S.TEXTO_DESLISTAR) ~= nil end)
             Utils.setStatus("Casa atual à venda (" .. tostring(metodo) .. ")", "ok")
         else
             Utils.aviso(string.format("List for Trade não respondeu: %s [%s] texto=%q",
@@ -903,9 +1016,10 @@ return function(App)
     local function localizarCasa(painel, lista, casas, alvo)
         local candidatas = candidatasDe(casas, alvo)
         if #candidatas == 0 then return nil end
+        if #candidatas == 1 then return candidatas[1] end
         if not alvo.tipo then
             local ordem = tonumber(string.match(alvo.nome, "%((%d+)%)%s*$")) or 1
-            return candidatas[ordem]
+            return candidatas[math.min(ordem, #candidatas)]
         end
         local jaAVenda
         for _, c in ipairs(candidatas) do
@@ -938,6 +1052,7 @@ return function(App)
             fecharPainel(painel)
             return false
         end
+        Casa.ultimaEntrega = { alvo = alvo, antes = #candidatasDe(casas, alvo) }
         escolherNoPainel(painel, casas, casa)
         tipoAtual = lido or alvo.tipo or tipoAtual
 
@@ -949,7 +1064,7 @@ return function(App)
 
         local listarAqui = Utils.acharBotao(painel, S.TEXTO_LISTAR_CASA)
         if listarAqui and Utils.clicar(listarAqui, painel) then
-            confirmarDialogo(2.5)
+            confirmarDialogo(2, nil, function() return vendaNaTela(painel) end)
             if esperar(function() return vendaNaTela(painel) end, 3) then
                 fecharPainel(painel)
                 Utils.setStatus("'" .. casa.nome .. "' à venda ✅", "ok")
@@ -966,13 +1081,20 @@ return function(App)
             local modeloAntes = modeloDaCasa(placaAntes)
             local chaveAntes = chaveDaCasa(placaAntes)
 
-            local ultimaBusca, resposta = 0, false
+            local resposta = false
+            local conexaoModelo
+            if modeloAntes then
+                conexaoModelo = modeloAntes.AncestryChanged:Connect(function(_, pai)
+                    if not pai then resposta = true end
+                end)
+            end
+            local ultimaBusca = 0
             local function trocou()
                 if resposta then return true end
                 local _, r = personagem()
                 if r and antes and (r.Position - antes).Magnitude > 15 then resposta = true end
                 if modeloAntes and not modeloAntes.Parent then resposta = true end
-                if not resposta and os.clock() - ultimaBusca > 1 then
+                if not resposta and os.clock() - ultimaBusca > 0.5 then
                     ultimaBusca = os.clock()
                     local placa = Casa.acharPlaca()
                     if placa and (modeloDaCasa(placa) ~= modeloAntes or chaveDaCasa(placa) ~= chaveAntes) then
@@ -982,28 +1104,30 @@ return function(App)
                 return resposta
             end
 
-            local apertou = Utils.clicar(mudar, painel, trocou, 4)
-            task.wait(0.4)
+            local apertou = Utils.clicar(mudar, painel, trocou, 2.5, 2)
+            if not apertou then esperar(trocou, 1.5) end
+            if conexaoModelo then conexaoModelo:Disconnect() end
+            task.wait(0.2)
             if Utils.cancelarDialogoPerigoso() then
                 Utils.setStatus("Algo deu errado no Go! (apareceu janela de vender). Cancelei e parei.", "erro")
                 return false
             end
-            confirmarDialogo(1.5, { "move", "change", "go to" })
-            if not apertou then esperar(trocou, 2) end
+            local confirmado = trocou()
+            confirmarDialogo(confirmado and 0 or 1, { "move", "change", "go to" })
+            if not confirmado then confirmado = trocou() end
             if Utils.cancelarDialogoPerigoso() then
                 Utils.setStatus("Apareceu janela de vender depois do Go!. Cancelei e parei.", "erro")
                 return false
             end
 
-            task.wait(0.8)
             fecharPainel(painel)
             placaGuardada = nil
-            if trocou() then
+            if confirmado then
                 Utils.setStatus("Casa trocada para '" .. casa.nome .. "'. Indo pôr à venda...", "espera")
             else
                 Utils.setStatus("'" .. casa.nome .. "' já parece ser a casa atual. Indo pôr à venda...", "espera")
             end
-            return "mudou"
+            return "mudou", confirmado
         end
 
         App.Mapeador.mapearObjeto(painel, "PAINEL HOMES (" .. casa.nome .. ")", "samhub_mapa_homes.txt")
@@ -1026,11 +1150,11 @@ return function(App)
         end
         local nomeAlvo = alvo.nome
 
-        local resultado = prepararCasa(alvo)
+        local resultado, goConfirmado = prepararCasa(alvo)
         if resultado == true then return true end
         if resultado ~= "mudou" then return false end
 
-        task.wait(1)
+        task.wait(0.3)
         placaGuardada = nil
         if not pertoDaCasa() then
             Utils.setStatus("Fui para '" .. nomeAlvo .. "', mas estou longe da casa. Toque na caixa de correio: eu continuo sozinho 📮", "aviso")
@@ -1039,7 +1163,11 @@ return function(App)
         if not listarCasaAtual(S.ESPERA_SAIR_CASA) then return false end
 
         if not S.CONFERIR_VENDA then return true end
-        task.wait(1.5)
+        if goConfirmado then
+            Utils.setStatus("'" .. nomeAlvo .. "' à venda ✅", "ok")
+            return true
+        end
+        task.wait(0.5)
         local aVenda = verificarCasa(alvo)
         if aVenda == true then
             Utils.setStatus("'" .. nomeAlvo .. "' à venda ✅", "ok")
@@ -1061,6 +1189,124 @@ return function(App)
             return false
         end
         return resultado
+    end
+
+    Casa.ultimaEntrega = nil
+
+    local function tirarDaLista(alvo)
+        local function mesmoTipo(c)
+            return not alvo.tipo or not c.tipoCasa or Utils.normalizar(c.tipoCasa) == Utils.normalizar(alvo.tipo)
+        end
+        local lista, escolhido = E.todasAsCasas, nil
+        for i, c in ipairs(lista) do
+            if c.nome == alvo.nome and mesmoTipo(c) then escolhido = i break end
+        end
+        if not escolhido then
+            local base = Utils.normalizar(alvo.nomeOriginal or alvo.nome)
+            for i, c in ipairs(lista) do
+                if Utils.normalizar(c.nomeOriginal or c.nome) == base and mesmoTipo(c) then escolhido = i break end
+            end
+        end
+        if escolhido then
+            E.casasSelecionadas[lista[escolhido].nome] = nil
+            table.remove(lista, escolhido)
+            Utils.EstadoMudou:Fire()
+        end
+    end
+
+    local function tituloHomesNaTela()
+        for _, d in ipairs(PlayerGui:GetDescendants()) do
+            if d:IsA("TextLabel") and Config.TITULOS_LISTA_CASAS[string.lower(Utils.limpar(d.Text))] and Utils.naTela(d) then
+                return d
+            end
+        end
+        return nil
+    end
+
+    local function fecharPeloTitulo(titulo)
+        local quadro = titulo.Parent
+        for _ = 1, 6 do
+            if not quadro or quadro:IsA("LayerCollector") then break end
+            if Utils.acharBotao(quadro, { "X", "✕", "×", "Close", "Fechar" }, { "close", "exit", "fechar", "xbutton" }) then
+                return fecharPainel(quadro)
+            end
+            quadro = quadro.Parent
+        end
+        return false
+    end
+
+    local function conferirEntrega(alvo, antes, manterAberto)
+        local nome = alvo.nomeOriginal or alvo.nome
+        task.wait(0.5)
+        local painel, _, casas = abrirListaHomes(6)
+        if not painel then
+            local titulo = tituloHomesNaTela()
+            if titulo then
+                fecharPeloTitulo(titulo)
+                tirarDaLista(alvo)
+                return true, "'" .. nome .. "' saiu da lista (não sobrou nenhuma casa)"
+            end
+            return nil, "a lista MY HOMES não abriu"
+        end
+
+        local depois = #candidatasDe(casas, alvo)
+        local function saiu() return depois == 0 or (antes ~= nil and depois < antes) end
+        for _ = 1, 2 do
+            if saiu() then break end
+            task.wait(1.5)
+            local p, l = App.Scanner.acharPainel()
+            if not l then break end
+            painel = p
+            depois = #candidatasDe(App.Scanner.lerCartoes(l), alvo)
+        end
+
+        local ok = saiu()
+        if ok and manterAberto then
+            deixeiHomesAberta = true
+        else
+            fecharPainel(painel)
+        end
+        if ok then
+            tirarDaLista(alvo)
+            return true, "'" .. nome .. "' saiu da lista MY HOMES"
+        end
+        if antes == nil then
+            return nil, string.format("ainda tem %d casa(s) '%s' na lista (não sei quantas tinha antes)", depois, nome)
+        end
+        return false, "'" .. nome .. "' ainda aparece na lista MY HOMES"
+    end
+
+    function Casa.conferirEntrega(nomeMarcado, manterAberto)
+        local info = Casa.ultimaEntrega
+        Casa.ultimaEntrega = nil
+        local alvo, antes
+        if info and (not nomeMarcado or info.alvo.nome == nomeMarcado) then
+            alvo, antes = info.alvo, info.antes
+        elseif nomeMarcado then
+            alvo = alvoDe(nomeMarcado)
+            local n = #candidatasDe(E.todasAsCasas, alvo)
+            if n > 0 then antes = n end
+        end
+        if not alvo then return nil, "não sei qual casa foi entregue" end
+        if ocupado then return nil, "estava fazendo outra coisa" end
+
+        ocupado = true
+        Utils.trabalhando()
+        Utils.setStatus("Trade feito! Conferindo se '" .. (alvo.nomeOriginal or alvo.nome) .. "' saiu da lista MY HOMES...", "espera")
+        local ok, r1, r2 = pcall(conferirEntrega, alvo, antes, manterAberto)
+        ocupado = false
+        if not ok then
+            Utils.aviso("conferir entrega: " .. tostring(r1))
+            return nil, "erro ao conferir (veja Registro)"
+        end
+        return r1, r2
+    end
+
+    function Casa.fecharHomesSeDeixei()
+        if not deixeiHomesAberta or ocupado then return end
+        deixeiHomesAberta = false
+        local painel = App.Scanner.acharPainel()
+        if painel then pcall(fecharPainel, painel) end
     end
 
     function Casa.diagnostico()
@@ -1114,7 +1360,7 @@ return function(App)
         for _, c in ipairs(candidatosMail(placa)) do add("  %s [%s] em %s", c.obj:GetFullName(), c.obj.ClassName, v(c.pos)) end
 
         add("Botões E encontrados:")
-        candidatosE = {}
+        table.clear(candidatosE)
         coletarE(true)
         for label in pairs(candidatosE) do
             local tela = label:FindFirstAncestorWhichIsA("LayerCollector")

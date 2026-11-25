@@ -2,7 +2,7 @@ local REPO = "https://raw.githubusercontent.com/samuelbr38/samhub/refs/heads/mai
 
 local MODO_DEV = false
 
-local MODULOS = { "config", "tema", "utils", "historico", "scanner", "mapeador", "casa", "trade", "fila", "componentes", "ui" }
+local MODULOS = { "config", "tema", "utils", "historico", "scanner", "mapeador", "casa", "trade", "fila", "popups", "componentes", "ui" }
 
 local env = (typeof(getgenv) == "function" and getgenv()) or _G
 if env.SAMHUB and env.SAMHUB.fechar then
@@ -63,7 +63,8 @@ App.Mapeador  = modulo("mapeador")(App)
 App.Casa      = modulo("casa")(App)
 App.Trade     = modulo("trade")(App)
 App.Fila      = modulo("fila")(App)
-App.C         = modulo("componentes")(App)
+App.Popups    = modulo("popups")(App)
+App.C        = modulo("componentes")(App)
 App.UI        = modulo("ui")(App)
 
 local S = App.Config.SAMHUB
@@ -91,6 +92,7 @@ function App.fechar()
     App.Fila.parar()
     App.Trade.parar()
     App.Casa.pararVigia()
+    App.Popups.parar()
     maid:Clean()
     if env.SAMHUB == App then env.SAMHUB = nil end
 end
@@ -100,6 +102,7 @@ App.UI.criar(maid)
 App.Historico.carregar()
 App.Trade.iniciar()
 App.Casa.iniciarVigia()
+App.Popups.iniciar()
 env.SAMHUB = App
 
 local tempo = string.format("%.1fs", os.clock() - inicio)
