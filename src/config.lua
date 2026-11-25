@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "7.5"
+Config.VERSAO = "7.6"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -51,6 +51,12 @@ Config.SAMHUB = {
     TEXTOS_CHEQUE      = { "do not show again", "bank of adopt me", "pay to the order", "playing adopt me" },
     TEXTOS_NAO_MOSTRAR = { "do not show again", "don't show again", "dont show again", "não mostrar" },
 
+    TEXTOS_VER_ITENS     = { "access to view your items", "view your items?" },
+    TEXTOS_SEMPRE_ESCOLHA = { "always use this choice", "sempre usar esta escolha" },
+    TEXTOS_NEGOU_ITENS   = { "automatically deny access", "deny access to view your items" },
+    TEXTO_NAO            = { "No", "Não", "Nao" },
+    TEXTO_SIM            = { "Yes", "Sim" },
+
     TEXTOS_PEDIDO_TRADE  = { "sent you a trade request", "trade request", "wants to trade" },
     TEXTO_RECUSAR_PEDIDO = { "Decline", "Recusar" },
 
@@ -67,6 +73,7 @@ Config.SAMHUB = {
     CONFERIR_ENTREGA  = true,
     AUTO_CASH_OUT     = true,
     ANTI_AFK          = true,
+    NEGAR_VER_ITENS   = true,
     SITE_URL           = "https://hnvlcanhywxsgdoromba.supabase.co",
     SITE_CHAVE_PUBLICA = "sb_publishable_zg-cjy13XFwpmc2muNxFOg_vsM8h7sI",
     SITE_LIGADO       = true,
@@ -90,6 +97,7 @@ Config.AJUSTES_SALVOS = {
     "RECUSAR_OUTROS", "ACEITAR_PEDIDO", "VERIFICAR_CASA", "LISTAR_AO_ATIVAR",
     "ANDAR_ATE_CAIXA", "CONFERIR_VENDA", "CAIXAS", "CAIXA_OBJETO", "MINIMIZAR_AUTO", "POPUPS",
     "TEMPO_ESTAVEL", "DELAY_MIN", "DELAY_MAX", "CONFERIR_ENTREGA", "AUTO_CASH_OUT", "ANTI_AFK", "SITE_LIGADO", "SITE_AUTO_FILA",
+    "NEGAR_VER_ITENS",
 }
 
 Config.PLACEHOLDERS = {

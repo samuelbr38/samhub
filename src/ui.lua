@@ -676,6 +676,7 @@ return function(App)
         toggle(10, "CONFERIR_ENTREGA", "Conferir após o trade", "a casa sumiu da lista MY HOMES?")
         toggle(11, "AUTO_CASH_OUT", "Cash Out automático", "cheque do banco: marca e saca")
         toggle(12, "ANTI_AFK", "Anti-inatividade", "o jogo não te tira depois de 20 min")
+        toggle(13, "NEGAR_VER_ITENS", "Negar 'ver seus itens'", "marca 'sempre' e aperta No")
 
         C.cabecalho(cardTempo, 1, nil, "Tempo")
         local function stepper(ordem, chave, texto, minimo, maximo, passo)

@@ -575,7 +575,7 @@ return function(App)
 
     local function avisoDeSeguranca()
         for _, d in ipairs(PlayerGui:GetDescendants()) do
-            if d:IsA("TextLabel") and Utils.temAlguma(string.lower(d.Text), S.TEXTOS_AVISO_TRADE) and Utils.naTela(d) then
+            if d:IsA("TextLabel") and Utils.temAlguma(string.lower(string.gsub(Utils.limpar(d.Text), "%s+", " ")), S.TEXTOS_AVISO_TRADE) and Utils.naTela(d) then
                 local quadro = d.Parent
                 for _ = 1, 5 do
                     if not quadro or quadro:IsA("LayerCollector") then break end

@@ -74,13 +74,20 @@ return function(App)
     end
 
     local function ehDoCash(obj, botaoCash)
+        if type(botaoCash) == "table" then
+            for _, b in ipairs(botaoCash) do
+                if ehDoCash(obj, b) then return true end
+            end
+            return false
+        end
         return obj == botaoCash or obj:IsAncestorOf(botaoCash) or botaoCash:IsAncestorOf(obj)
     end
 
-    local function caixaNaoMostrar(quadro, botaoCash)
+    local function caixaNaoMostrar(quadro, botaoCash, textosCaixa)
+        textosCaixa = textosCaixa or S.TEXTOS_NAO_MOSTRAR
         for _, d in ipairs(quadro:GetDescendants()) do
             if (d:IsA("TextLabel") or d:IsA("TextButton")) and Utils.naTela(d)
-                and Utils.temAlguma(string.lower(Utils.limpar(d.Text)), S.TEXTOS_NAO_MOSTRAR) then
+                and Utils.temAlguma(string.lower(Utils.limpar(d.Text)), textosCaixa) then
                 local linhaBotao = d:IsA("GuiButton") and d or d:FindFirstAncestorWhichIsA("GuiButton")
                 if linhaBotao and quadro:IsAncestorOf(linhaBotao) and not ehDoCash(linhaBotao, botaoCash) then
                     return linhaBotao, linhaBotao
@@ -166,6 +173,85 @@ return function(App)
         return false
     end
 
+    local marcadosItens = setmetatable({}, { __mode = "k" })
+    local falhasItens = 0
+    local pausaItensAte = 0
+
+    local function quadroCom(label, textosBotao)
+        local quadro = label.Parent
+        for _ = 1, 6 do
+            if not quadro or quadro:IsA("LayerCollector") then return nil end
+            local botao = Utils.acharBotao(quadro, textosBotao)
+            if botao then return quadro, botao end
+            quadro = quadro.Parent
+        end
+        return nil
+    end
+
+    local function acharTextoNaTela(textos, menos)
+        for _, d in ipairs(PlayerGui:GetDescendants()) do
+            if d:IsA("TextLabel") or d:IsA("TextButton") then
+                local t = string.lower(string.gsub(Utils.limpar(d.Text), "%s+", " "))
+                if t ~= "" and Utils.temAlguma(t, textos) and not (menos and Utils.temAlguma(t, menos)) and Utils.naTela(d) then
+                    return d
+                end
+            end
+        end
+        return nil
+    end
+
+    function Popups.resolverVerItens()
+        if os.clock() < pausaItensAte then return false end
+
+        local aviso = acharTextoNaTela(S.TEXTOS_NEGOU_ITENS)
+        if aviso then
+            local quadro, okay = quadroCom(aviso, S.TEXTO_OKAY)
+            if okay then
+                Utils.clicar(okay, quadro, function() return not okay.Parent or not Utils.naTela(okay) end, 2)
+                Utils.log("ver itens: apertei Okay no aviso de 'negar sempre'", "info")
+                return true
+            end
+        end
+
+        local pergunta = acharTextoNaTela(S.TEXTOS_VER_ITENS, S.TEXTOS_NEGOU_ITENS)
+        if not pergunta then return false end
+        local quadro, botaoNao = quadroCom(pergunta, S.TEXTO_NAO)
+        if not botaoNao then return false end
+        local botaoSim = Utils.acharBotao(quadro, S.TEXTO_SIM)
+
+        if not marcadosItens[quadro] then
+            marcadosItens[quadro] = true
+            local evitar = { botaoNao }
+            if botaoSim then table.insert(evitar, botaoSim) end
+            local alvo, area = caixaNaoMostrar(quadro, evitar, S.TEXTOS_SEMPRE_ESCOLHA)
+            if alvo and not ehDoCash(alvo, evitar) then
+                local antes = fotoDe(area)
+                local ok = Utils.clicar(alvo, area, function() return fotoDe(area) ~= antes end, 1.2, 2)
+                if not ok then Utils.aviso("ver itens: cliquei em 'Always use this choice', mas não vi ela mudar") end
+                task.wait(0.25)
+            else
+                Utils.aviso("ver itens: não achei a caixinha 'Always use this choice' (aperto No mesmo assim)")
+            end
+        end
+
+        if not botaoNao.Parent or not Utils.naTela(botaoNao) then return true end
+        local ok = Utils.clicar(botaoNao, quadro, function()
+            return not botaoNao.Parent or not Utils.naTela(botaoNao)
+        end, 2.5)
+        if ok then
+            falhasItens = 0
+            Utils.notificar("👀 Pedido para ver seus itens: marquei 'sempre' e apertei No", "ok")
+            return true
+        end
+        falhasItens += 1
+        if falhasItens >= 3 then
+            falhasItens = 0
+            pausaItensAte = os.clock() + 30
+            Utils.notificar("Não consegui apertar No no pedido para ver seus itens. Aperte você (tento de novo em 30s).", "aviso")
+        end
+        return false
+    end
+
     local function naoFicarParado()
         if not S.ANTI_AFK then return end
         pcall(function()
@@ -196,6 +282,10 @@ return function(App)
                     end
                     local ok, err = pcall(Popups.resolverCheque)
                     if not ok then Utils.aviso("cheque: " .. tostring(err)) end
+                end
+                if S.NEGAR_VER_ITENS then
+                    local ok, err = pcall(Popups.resolverVerItens)
+                    if not ok then Utils.aviso("ver itens: " .. tostring(err)) end
                 end
             end
         end)
