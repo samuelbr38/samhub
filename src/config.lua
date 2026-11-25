@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "7.2"
+Config.VERSAO = "7.3"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -110,12 +110,16 @@ Config.NUNCA_CLICAR = {
 Config.PALAVRAS_PERIGO = { "sell", "vender", "venda por", "delete", "apagar", "robux", "purchase", "buy", "comprar" }
 
 Config.IGNORAR = {
-    ["home"] = true, ["house"] = true, ["casa"] = true, ["houses"] = true, ["casas"] = true,
-    ["my house"] = true, ["my home"] = true, ["go home"] = true,
+    ["go home"] = true,
     ["teleport home"] = true, ["home button"] = true,
     ["build house"] = true, ["my homes"] = true, ["my houses"] = true, ["minhas casas"] = true,
     ["build"] = true, ["visit"] = true, ["edit"] = true, ["select"] = true, ["equip"] = true,
     ["equipped"] = true, ["sell"] = true, ["trade"] = true, ["for trade"] = true, ["close"] = true,
+}
+
+Config.NOMES_GENERICOS = {
+    ["home"] = true, ["house"] = true, ["casa"] = true, ["houses"] = true, ["casas"] = true,
+    ["my house"] = true, ["my home"] = true,
 }
 
 Config.TIPOS = {
@@ -124,6 +128,7 @@ Config.TIPOS = {
     { "farm",         "🌾" }, { "wooden",    "🪵" }, { "queenslander", "🏡" },
     { "treehouse",    "🌳" }, { "moon",      "🌙" }, { "ice cream", "🍦" },
     { "toyshop",      "🧸" }, { "ranch",     "🐎" }, { "cottage", "🏡" }, { "gingerbread", "🍪" },
+    { "friendly",     "🏡" },
 }
 
 Config.Estado = {

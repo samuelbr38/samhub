@@ -898,7 +898,7 @@ return function(App)
             TextWrapped = true, Font = Tema.fonteMono, TextSize = 10, TextColor3 = Tema.suave, Text = "",
         })
         for i, t in ipairs({
-            { "SITE_LIGADO", "Buscar pedidos do site", "a cada 30 segundos" },
+            { "SITE_LIGADO", "Buscar pedidos do site", "a cada 30 a 60 segundos" },
             { "SITE_AUTO_FILA", "Começar a fila sozinho", "quando chegar casinha nova" },
         }) do
             C.toggle({

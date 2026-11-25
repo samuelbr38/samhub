@@ -6,10 +6,11 @@ return function(App)
 
     local Scanner = {}
 
-    local function textoValido(texto)
+    local function textoValido(texto, noCartao)
         local l = string.lower(texto)
         if l == "" or #texto > S.TAMANHO_MAX_NOME then return false end
         if Config.IGNORAR[l] or Config.PLACEHOLDERS[l] then return false end
+        if Config.NOMES_GENERICOS[l] and not noCartao then return false end
         for _, proibida in ipairs(Config.NUNCA_CLICAR) do
             if Utils.temPalavra(l, proibida) then return false end
         end
@@ -43,7 +44,7 @@ return function(App)
                     atual = atual.Parent
                 end
                 local texto = string.gsub(Utils.limpar(d.Text), "^%+%s*", "")
-                if not dentroDeBotao and textoValido(texto) then
+                if not dentroDeBotao and textoValido(texto, true) then
                     local tamanho = d.TextScaled and d.AbsoluteSize.Y or d.TextSize
                     table.insert(textos, { texto = texto, tamanho = tamanho, y = d.AbsolutePosition.Y })
                 end
