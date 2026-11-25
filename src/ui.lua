@@ -1,7 +1,7 @@
 return function(App)
     local Config, Tema, Utils, C = App.Config, App.Tema, App.Utils, App.C
     local Scanner, Trade, Mapeador, Historico, Casa = App.Scanner, App.Trade, App.Mapeador, App.Historico, App.Casa
-    local Fila = App.Fila
+    local Fila, Site = App.Fila, App.Site
     local S, E = Config.SAMHUB, Config.Estado
 
     local Players = game:GetService("Players")
@@ -104,14 +104,14 @@ return function(App)
             Parent = gui, BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, W, 0, H),
         })
-        C.sombra(moldura, UDim2.new(1, 0, 1, 0), UDim2.new(0.5, 0, 0.5, 3), nil, 8)
+        C.sombra(moldura, UDim2.new(1, 0, 1, 0), UDim2.new(0.5, 0, 0.5, 4), nil, 10)
         local function janelaAberta()
             return moldura.Visible or moldura:GetAttribute("SamhubEscondido") == true
         end
         local janela = C.criar("Frame", {
-            Parent = moldura, BackgroundColor3 = Tema.fundo, ClipsDescendants = true,
+            Parent = moldura, BackgroundColor3 = Color3.new(1, 1, 1), ClipsDescendants = true,
             Size = UDim2.new(1, 0, 1, 0), ZIndex = 1,
-        }, { C.canto(8), C.borda(Tema.borda) })
+        }, { C.canto(10), C.bordaNeon(0.45), C.degrade(Tema.fundo, Tema.fundoBaixo, 120) })
 
         local escala = C.criar("UIScale", { Parent = moldura })
         local escalaBase = 1
@@ -132,8 +132,8 @@ return function(App)
         end
 
         local lateral = C.criar("Frame", {
-            Parent = janela, BackgroundColor3 = Tema.lateral, BorderSizePixel = 0, Size = UDim2.new(0, LAT, 1, 0),
-        })
+            Parent = janela, BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Size = UDim2.new(0, LAT, 1, 0),
+        }, { C.degrade(Tema.lateral, Tema.fundo, 90) })
         C.criar("Frame", {
             Parent = lateral, BackgroundColor3 = Tema.borda, BorderSizePixel = 0,
             Position = UDim2.new(1, -1, 0, 0), Size = UDim2.new(0, 1, 1, 0),
@@ -151,7 +151,7 @@ return function(App)
             Parent = lateral, BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 48), Size = UDim2.new(1, 0, 1, -76),
         }, {
             C.criar("UIListLayout", {
-                SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4),
+                SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 2),
                 HorizontalAlignment = Enum.HorizontalAlignment.Center,
             }),
         })
@@ -170,8 +170,15 @@ return function(App)
             Position = UDim2.new(0, 0, 1, -1), Size = UDim2.new(1, 0, 0, 1),
         })
         C.criar("Frame", {
-            Parent = topo, BackgroundColor3 = Tema.rosa, BorderSizePixel = 0,
-            Position = UDim2.new(0, 0, 1, -1), Size = UDim2.new(0, 36, 0, 1),
+            Parent = topo, BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
+            Position = UDim2.new(0, 0, 1, -1), Size = UDim2.new(1, 0, 0, 1),
+        }, {
+            C.criar("UIGradient", {
+                Color = ColorSequence.new(Tema.rosa, Tema.lilas),
+                Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.6, 0.6), NumberSequenceKeypoint.new(1, 1),
+                }),
+            }),
         })
         local tituloPagina = C.texto({
             Parent = topo, Position = UDim2.new(0, 12, 0, 6), Size = UDim2.new(1, -160, 0, 14),
@@ -213,6 +220,7 @@ return function(App)
             { icone = "⚙️", nome = "AJUSTES" },
             { icone = "🧪", nome = "DIAGNÓSTICO" },
             { icone = "📟", nome = "REGISTRO" },
+            { icone = "🌐", nome = "SITE" },
         }
         local itensNav, paginas, aoAbrirAba = {}, {}, {}
         local abaAtual = 1
@@ -222,8 +230,24 @@ return function(App)
             for j, pg in ipairs(paginas) do pg.Visible = (j == i) end
             for j, item in ipairs(itensNav) do
                 local ativo = j == i
-                C.tween(item.botao, { BackgroundTransparency = se(ativo, 0.82, 1) })
+                C.tween(item.botao, { BackgroundTransparency = se(ativo, 0.8, 1), TextTransparency = se(ativo, 0, 0.45) })
                 item.barra.Visible = ativo
+            end
+            local pagina = paginas[i]
+            if pagina then
+                for _, d in ipairs(pagina:GetDescendants()) do
+                    if d:IsA("TextLabel") or d:IsA("TextButton") then
+                        local alvo = d:GetAttribute("TT0")
+                        if alvo == nil then
+                            alvo = d.TextTransparency
+                            d:SetAttribute("TT0", alvo)
+                        end
+                        if alvo < 1 then
+                            d.TextTransparency = math.min(1, alvo + 0.6)
+                            C.tween(d, { TextTransparency = alvo }, 0.18)
+                        end
+                    end
+                end
             end
             tituloPagina.Text = "> " .. ABAS[i].nome
             if aoAbrirAba[i] then task.spawn(aoAbrirAba[i]) end
@@ -233,19 +257,19 @@ return function(App)
             local botao = C.criar("TextButton", {
                 Parent = nav, LayoutOrder = i, Text = aba.icone, AutoButtonColor = false,
                 BackgroundColor3 = Tema.rosa, BackgroundTransparency = 1, Size = UDim2.new(0, 32, 0, 32),
-                Font = Tema.fonte, TextSize = 15,
-            }, { C.canto(6) })
+                Font = Tema.fonte, TextSize = 15, TextTransparency = 0.45,
+            }, { C.canto(8) })
             local barra = C.criar("Frame", {
-                Parent = botao, BackgroundColor3 = Tema.rosa, BorderSizePixel = 0, AnchorPoint = Vector2.new(0, 0.5),
-                Position = UDim2.new(0, -7, 0.5, 0), Size = UDim2.new(0, 2, 0, 16), Visible = false,
-            })
+                Parent = botao, BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, AnchorPoint = Vector2.new(0, 0.5),
+                Position = UDim2.new(0, -8, 0.5, 0), Size = UDim2.new(0, 3, 0, 18), Visible = false,
+            }, { C.canto(2), C.gradiente(90) })
             botao.MouseButton1Click:Connect(function() irPara(i) end)
             itensNav[i] = { botao = botao, barra = barra }
             paginas[i] = C.criar("Frame", {
                 Parent = conteudo, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Visible = false,
             }, { C.padding(8, 8, 8, 8) })
         end
-        local pgEntrega, pgFila, pgHistorico, pgAjustes, pgDiag, pgRegistro = table.unpack(paginas)
+        local pgEntrega, pgFila, pgHistorico, pgAjustes, pgDiag, pgRegistro, pgSite = table.unpack(paginas)
 
         local cardComprador, cardCasas = colunas(pgEntrega, 0.46)
 
@@ -651,6 +675,7 @@ return function(App)
         toggle(9, "POPUPS", "Popups ao vivo", "mostra o que ele está fazendo")
         toggle(10, "CONFERIR_ENTREGA", "Conferir após o trade", "a casa sumiu da lista MY HOMES?")
         toggle(11, "AUTO_CASH_OUT", "Cash Out automático", "cheque do banco: marca e saca")
+        toggle(12, "ANTI_AFK", "Anti-inatividade", "o jogo não te tira depois de 20 min")
 
         C.cabecalho(cardTempo, 1, nil, "Tempo")
         local function stepper(ordem, chave, texto, minimo, maximo, passo)
@@ -838,6 +863,185 @@ return function(App)
             if registroSujo then renderRegistro() end
         end
 
+        local cardConta, cardSite = colunas(pgSite, 0.52)
+        C.cabecalho(cardConta, 1, nil, "Conta do site")
+        local caixaConta = C.criar("Frame", {
+            Parent = cardConta, LayoutOrder = 2, BackgroundColor3 = Tema.painel2,
+            Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+        }, { C.canto(6), C.padding(8, 10, 8, 10), C.borda(Tema.borda, 1, 0.2) })
+        local textoConta = C.texto({
+            Parent = caixaConta, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+            TextWrapped = true, RichText = true, Font = Tema.fonteMono, TextSize = 10, Text = "",
+        })
+        local linhaConta = C.linha(cardConta, 3, 26)
+        local botaoEntrarSite = C.botao({
+            Parent = linhaConta, Texto = "ENTRAR", Variante = "primario", Size = UDim2.new(0.55, -3, 1, 0), TextSize = 11,
+            OnClick = function() UI.mostrarLogin() end,
+        })
+        C.botao({
+            Parent = linhaConta, Texto = "SAIR", Position = UDim2.new(0.55, 3, 0, 0), Size = UDim2.new(0.45, -3, 1, 0),
+            TextSize = 10, OnClick = function() Site.sair() end,
+        })
+        C.texto({
+            Parent = cardConta, LayoutOrder = 4, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+            TextWrapped = true, Font = Tema.fonteMono, TextSize = 9, TextColor3 = Tema.apagado,
+            Text = "cada celular entra com uma conta criada no site (configurações > entrega automática). a senha não fica salva aqui.",
+        })
+
+        semLista(cardSite)
+        C.cabecalho(cardSite, 0, nil, "Pedidos do site")
+        local listaAjSite = scroll(cardSite, { Position = UDim2.new(0, 0, 0, 20), Size = UDim2.new(1, 0, 1, -20) })
+        C.padding(0, 6, 0, 0).Parent = listaAjSite
+        C.lista(4).Parent = listaAjSite
+        local infoSite = C.texto({
+            Parent = listaAjSite, LayoutOrder = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+            TextWrapped = true, Font = Tema.fonteMono, TextSize = 10, TextColor3 = Tema.suave, Text = "",
+        })
+        for i, t in ipairs({
+            { "SITE_LIGADO", "Buscar pedidos do site", "a cada 12 segundos" },
+            { "SITE_AUTO_FILA", "Começar a fila sozinho", "quando chegar casinha nova" },
+        }) do
+            C.toggle({
+                Parent = listaAjSite, LayoutOrder = 1 + i, Texto = t[2], Descricao = t[3], Valor = S[t[1]],
+                OnChange = function(v)
+                    S[t[1]] = v
+                    App.salvarAjustes()
+                end,
+            })
+        end
+        C.botao({
+            Parent = listaAjSite, LayoutOrder = 10, Texto = "BUSCAR AGORA", Size = UDim2.new(1, 0, 0, 22), TextSize = 10,
+            OnClick = function() Site.buscarAgora() end,
+        })
+
+        local function renderSite()
+            local st = Site.estado
+            local cor = se(st.logado, "#3ce696", se(st.erro ~= nil, "#ff4c60", "#a094b2"))
+            textoConta.Text = string.format('<font color="%s">%s</font> %s\n<font color="#605672">%s</font>',
+                cor, se(st.logado, "●", "○"), Utils.escaparRich(st.conta or "sem conta"), Utils.escaparRich(st.texto or ""))
+            botaoEntrarSite.Text = se(st.logado, "TROCAR CONTA", "ENTRAR")
+            infoSite.Text = string.format("> para esta conta: %d casinha(s)\n> última busca: %s",
+                st.naFila or 0, st.ultimaBusca or "-")
+        end
+        maid:Add(Site.Mudou:Connect(renderSite))
+        renderSite()
+
+        local login = C.criar("Frame", {
+            Parent = gui, Name = "Login", BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.35,
+            Size = UDim2.new(1, 0, 1, 0), ZIndex = 40, Visible = false, Active = true,
+        })
+        local cartaoLogin = C.criar("Frame", {
+            Parent = login, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = UDim2.new(0, 290, 0, 268), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 41,
+        }, { C.canto(12), C.bordaNeon(0.25, 1.5), C.degrade(Tema.painel, Tema.fundoBaixo, 120), C.padding(18, 20, 16, 20) })
+        local escalaLogin = C.criar("UIScale", { Parent = cartaoLogin })
+        local function escalarLogin()
+            local camera = workspace.CurrentCamera
+            local tela = camera and camera.ViewportSize or Vector2.new(800, 600)
+            escalaLogin.Scale = math.clamp(math.min((tela.X - 20) / 290, (tela.Y - 20) / 268), 0.6, 1)
+        end
+        escalarLogin()
+        if workspace.CurrentCamera then
+            maid:Add(workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(escalarLogin))
+        end
+
+        local logoLogin = C.criar("Frame", {
+            Parent = cartaoLogin, BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(0, 36, 0, 36), ZIndex = 42,
+        }, { C.canto(10), C.gradiente(45) })
+        C.texto({
+            Parent = logoLogin, Text = "S", Size = UDim2.new(1, 0, 1, 0), Font = Tema.fonteForte, TextSize = 18,
+            TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 43,
+        })
+        C.texto({
+            Parent = cartaoLogin, Text = "SAMHUB", Position = UDim2.new(0, 46, 0, 0), Size = UDim2.new(1, -46, 0, 20),
+            Font = Tema.fonteForte, TextSize = 16, ZIndex = 42,
+        })
+        C.texto({
+            Parent = cartaoLogin, Text = "entre com a sua conta // v" .. Config.VERSAO, Position = UDim2.new(0, 46, 0, 20),
+            Size = UDim2.new(1, -46, 0, 14), Font = Tema.fonteMono, TextSize = 9, TextColor3 = Tema.suave, ZIndex = 42,
+        })
+
+        local function rotuloLogin(texto, y)
+            C.texto({
+                Parent = cartaoLogin, Text = texto, Position = UDim2.new(0, 0, 0, y), Size = UDim2.new(1, 0, 0, 12),
+                Font = Tema.fonteMono, TextSize = 9, TextColor3 = Tema.rosaClaro, ZIndex = 42,
+            })
+        end
+        rotuloLogin("USUÁRIO", 50)
+        local campoUsuario = C.input({
+            Parent = cartaoLogin, Position = UDim2.new(0, 0, 0, 64), Size = UDim2.new(1, 0, 0, 30),
+            Placeholder = "ex.: celular1", Prefixo = "@",
+        })
+        rotuloLogin("SENHA", 102)
+        local campoSenha = C.inputSenha({
+            Parent = cartaoLogin, Position = UDim2.new(0, 0, 0, 116), Size = UDim2.new(1, 0, 0, 30),
+            Placeholder = "sua senha", Prefixo = "#",
+        })
+        for _, o in ipairs({ campoUsuario, campoSenha }) do
+            o.ZIndex = 42
+            for _, d in ipairs(o:GetDescendants()) do
+                if d:IsA("GuiObject") then d.ZIndex = 43 end
+            end
+        end
+        local avisoLogin = C.texto({
+            Parent = cartaoLogin, Text = "", Position = UDim2.new(0, 0, 0, 152), Size = UDim2.new(1, 0, 0, 26),
+            Font = Tema.fonteMono, TextSize = 9, TextColor3 = Tema.vermelho, TextWrapped = true, ZIndex = 42,
+            TextYAlignment = Enum.TextYAlignment.Top,
+        })
+        local botaoEntrar = C.botao({
+            Parent = cartaoLogin, Texto = "ENTRAR", Variante = "primario", Position = UDim2.new(0, 0, 0, 182),
+            Size = UDim2.new(1, 0, 0, 32), TextSize = 12,
+        })
+        botaoEntrar.ZIndex = 42
+        local semSite = C.criar("TextButton", {
+            Parent = cartaoLogin, Text = "usar sem o site", Position = UDim2.new(0, 0, 0, 220), Size = UDim2.new(1, 0, 0, 16),
+            BackgroundTransparency = 1, Font = Tema.fonteMono, TextSize = 9, TextColor3 = Tema.suave, ZIndex = 42,
+        })
+
+        local entrando = false
+        local function esconderLogin()
+            login:SetAttribute("SamhubEscondido", nil)
+            login.Visible = false
+            campoSenha.Text = ""
+        end
+        function UI.mostrarLogin(msg)
+            if not Site.configurado() then return end
+            avisoLogin.Text = msg or ""
+            avisoLogin.TextColor3 = Tema.vermelho
+            if campoUsuario.Text == "" and Site.estado.conta then campoUsuario.Text = Site.estado.conta end
+            login:SetAttribute("SamhubEscondido", nil)
+            login.Visible = true
+            escalarLogin()
+            local alvo = escalaLogin.Scale
+            escalaLogin.Scale = alvo * 0.94
+            C.tween(escalaLogin, { Scale = alvo }, 0.18)
+        end
+
+        local function entrar()
+            if entrando then return end
+            entrando = true
+            botaoEntrar.Text = "ENTRANDO..."
+            avisoLogin.TextColor3 = Tema.suave
+            avisoLogin.Text = "conferindo..."
+            task.spawn(function()
+                local ok, msg = Site.entrar(campoUsuario.Text, campoSenha.Text)
+                entrando = false
+                botaoEntrar.Text = "ENTRAR"
+                if ok then
+                    esconderLogin()
+                else
+                    campoSenha.Text = ""
+                    avisoLogin.TextColor3 = Tema.vermelho
+                    avisoLogin.Text = tostring(msg)
+                end
+            end)
+        end
+        botaoEntrar.MouseButton1Click:Connect(entrar)
+        campoSenha.FocusLost:Connect(function(enter) if enter then entrar() end end)
+        campoUsuario.FocusLost:Connect(function(enter) if enter then campoSenha:CaptureFocus() end end)
+        semSite.MouseButton1Click:Connect(esconderLogin)
+        maid:Add(Site.PedirLogin:Connect(function() UI.mostrarLogin() end))
+
         local function mostrarStatus(texto, tipo)
             textoStatus.Text = (Tema.icones[tipo] or "") .. " " .. texto
             textoStatus.TextColor3 = se(tipo == "erro" or tipo == "aviso", Tema.status[tipo], Tema.texto)
@@ -876,13 +1080,36 @@ return function(App)
 
         local bolha = C.criar("TextButton", {
             Parent = gui, Name = "Bolha", Text = "S", AutoButtonColor = false, Visible = false,
-            BackgroundColor3 = Tema.fundo, AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.new(0, 40, 0.5, 0), Size = UDim2.new(0, 40, 0, 40),
-            Font = Tema.fonteForte, TextSize = 17, TextColor3 = Tema.rosa,
+            BackgroundColor3 = Color3.new(1, 1, 1), AnchorPoint = Vector2.new(0.5, 0.5),
+            Position = UDim2.new(0, 40, 0.5, 0), Size = UDim2.new(0, 42, 0, 42),
+            Font = Tema.fonteForte, TextSize = 18, TextColor3 = Tema.texto,
         }, {
             C.criar("UICorner", { CornerRadius = UDim.new(1, 0) }),
-            C.criar("UIStroke", { Color = Tema.rosa, Thickness = 1.5 }),
+            C.bordaNeon(0, 2),
+            C.degrade(Tema.painel2, Tema.fundo, 135),
         })
+        local anel = C.criar("Frame", {
+            Parent = bolha, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, ZIndex = 0,
+        }, { C.criar("UICorner", { CornerRadius = UDim.new(1, 0) }), C.bordaNeon(1, 2) })
+        local contornoAnel = anel:FindFirstChildOfClass("UIStroke")
+        local respirando = false
+        local function respirar(ligar)
+            if ligar == respirando then return end
+            respirando = ligar
+            if not ligar then return end
+            task.spawn(function()
+                while respirando and bolha.Parent do
+                    anel.Size = UDim2.new(1, 0, 1, 0)
+                    contornoAnel.Transparency = 0.2
+                    C.tween(anel, { Size = UDim2.new(1, 18, 1, 18) }, 0.9)
+                    C.tween(contornoAnel, { Transparency = 1 }, 0.9)
+                    task.wait(1.1)
+                end
+                contornoAnel.Transparency = 1
+            end)
+        end
+        maid:Add(Utils.StatusMudou:Connect(function(_, tipo) respirar(tipo == "espera") end))
         local pontinho = C.criar("Frame", {
             Parent = bolha, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.85, 0, 0.15, 0),
             Size = UDim2.new(0, 10, 0, 10), BackgroundColor3 = Tema.apagado,
@@ -927,7 +1154,7 @@ return function(App)
             Parent = gui, Name = "Hud", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 46),
             Size = UDim2.new(0, 0, 0, 24), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = Tema.fundo,
             BackgroundTransparency = 0.08, Visible = false,
-        }, { C.canto(12), C.padding(0, 12, 0, 22), C.borda(Tema.rosa, 1, 0.35) })
+        }, { C.canto(12), C.padding(0, 12, 0, 22), C.bordaNeon(0.3) })
         local pontoHud = C.criar("Frame", {
             Parent = hud, AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, -13, 0.5, 0),
             Size = UDim2.new(0, 6, 0, 6), BackgroundColor3 = Tema.rosa,
@@ -967,6 +1194,11 @@ return function(App)
         maid:Add(Utils.StatusMudou:Connect(mostrarHud))
 
         maid:Add(Utils.Trabalho:Connect(function()
+            local telaLogin = gui:FindFirstChild("Login")
+            if telaLogin and telaLogin.Visible and not entrando then
+                telaLogin:SetAttribute("SamhubEscondido", nil)
+                telaLogin.Visible = false
+            end
             if S.MINIMIZAR_AUTO and janelaAberta() then mostrarBolha() end
         end))
 
@@ -977,7 +1209,7 @@ return function(App)
         end
         Utils.esconderMenuSeCobrir = function(ponto)
             local escondidos = {}
-            for _, obj in ipairs({ moldura, bolha, hud, gui:FindFirstChild("Toasts") or false }) do
+            for _, obj in ipairs({ moldura, bolha, hud, gui:FindFirstChild("Toasts") or false, gui:FindFirstChild("Login") or false }) do
                 if obj and cobre(obj, ponto) then
                     obj:SetAttribute("SamhubEscondido", true)
                     obj.Visible = false

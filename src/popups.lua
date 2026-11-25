@@ -166,9 +166,20 @@ return function(App)
         return false
     end
 
+    local function naoFicarParado()
+        if not S.ANTI_AFK then return end
+        pcall(function()
+            local VirtualUser = game:GetService("VirtualUser")
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new())
+        end)
+        Utils.log("anti-inatividade: mexi para o jogo não te desconectar", "debug")
+    end
+
     function Popups.iniciar()
         if rodando then return end
         rodando = true
+        table.insert(conexoes, Players.LocalPlayer.Idled:Connect(naoFicarParado))
         table.insert(conexoes, PlayerGui.DescendantAdded:Connect(registrar))
         coletar()
         task.spawn(function()

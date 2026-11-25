@@ -76,11 +76,27 @@ return function(App)
         })
     end
 
+    function C.degrade(cor1, cor2, rotacao)
+        return C.criar("UIGradient", { Color = ColorSequence.new(cor1, cor2), Rotation = rotacao or 90 })
+    end
+
+    function C.bordaNeon(transparencia, espessura)
+        local borda = C.criar("UIStroke", {
+            Color = Color3.new(1, 1, 1), Thickness = espessura or 1, Transparency = transparencia or 0.35,
+            ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+        })
+        C.gradiente(45).Parent = borda
+        return borda
+    end
+
     function C.card(p)
-        local filhos = { C.canto(Tema.raio), C.borda(), C.padding(10, 10, 10, 10) }
+        local filhos = {
+            C.canto(Tema.raio), C.borda(Tema.borda, 1, 0.25), C.padding(10, 10, 10, 10),
+            C.degrade(Tema.painel, Tema.fundoBaixo, 90),
+        }
         if p.Lista ~= false then table.insert(filhos, C.lista(p.Espaco or 6)) end
         return C.criar("Frame", {
-            Parent = p.Parent, BackgroundColor3 = Tema.painel, Size = p.Size or UDim2.new(1, 0, 1, 0),
+            Parent = p.Parent, BackgroundColor3 = Color3.new(1, 1, 1), Size = p.Size or UDim2.new(1, 0, 1, 0),
             Position = p.Position or UDim2.new(), LayoutOrder = p.LayoutOrder or 0,
         }, filhos)
     end
@@ -88,9 +104,9 @@ return function(App)
     function C.cabecalho(pai, ordem, _, texto)
         local linha = C.linha(pai, ordem, 14)
         C.criar("Frame", {
-            Parent = linha, BackgroundColor3 = Tema.rosa, BorderSizePixel = 0,
-            AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 0, 0.5, 0), Size = UDim2.new(0, 2, 0, 10),
-        })
+            Parent = linha, BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
+            AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 0, 0.5, 0), Size = UDim2.new(0, 3, 0, 11),
+        }, { C.canto(2), C.gradiente(90) })
         C.texto({
             Parent = linha, Text = string.upper(texto), Position = UDim2.new(0, 8, 0, 0),
             Size = UDim2.new(1, -8, 1, 0), Font = Tema.fonteMono, TextSize = 10, TextColor3 = Tema.rosaClaro,
@@ -129,27 +145,50 @@ return function(App)
         perigo = Tema.vermelho,
     }
 
+    local BRANCO = Color3.new(1, 1, 1)
+
     function C.botao(p)
         local variante = p.Variante or "secundario"
         local cor = CORES_VARIANTE[variante]
+        local primario = variante == "primario"
         local botao = C.criar("TextButton", {
             Parent = p.Parent, Text = p.Texto, Size = p.Size, Position = p.Position or UDim2.new(),
-            LayoutOrder = p.LayoutOrder or 0, BackgroundColor3 = cor, AutoButtonColor = false,
+            LayoutOrder = p.LayoutOrder or 0, BackgroundColor3 = primario and BRANCO or cor, AutoButtonColor = false,
             Font = Tema.fonteForte, TextSize = p.TextSize or 11, TextColor3 = Tema.texto,
-        }, { C.canto(5) })
-        if variante == "secundario" then C.borda().Parent = botao end
-        botao:SetAttribute("CorBase", cor)
+        }, { C.canto(6) })
+        if variante == "secundario" then C.borda(Tema.borda, 1, 0.1).Parent = botao end
+        if primario then
+            local g = C.gradiente(20)
+            g.Name = "Degrade"
+            g.Parent = botao
+        end
+        botao:SetAttribute("CorBase", primario and BRANCO or cor)
+        local escala = C.criar("UIScale", { Parent = botao })
 
         local function base() return botao:GetAttribute("CorBase") end
         botao.MouseEnter:Connect(function() C.tween(botao, { BackgroundColor3 = clarear(base()) }) end)
-        botao.MouseLeave:Connect(function() C.tween(botao, { BackgroundColor3 = base() }) end)
-        botao.MouseButton1Down:Connect(function() C.tween(botao, { BackgroundColor3 = escurecer(base()) }, 0.06) end)
-        botao.MouseButton1Up:Connect(function() C.tween(botao, { BackgroundColor3 = clarear(base()) }, 0.06) end)
+        botao.MouseLeave:Connect(function()
+            C.tween(botao, { BackgroundColor3 = base() })
+            C.tween(escala, { Scale = 1 }, 0.1)
+        end)
+        botao.MouseButton1Down:Connect(function()
+            C.tween(botao, { BackgroundColor3 = escurecer(base()) }, 0.06)
+            C.tween(escala, { Scale = 0.96 }, 0.06)
+        end)
+        botao.MouseButton1Up:Connect(function()
+            C.tween(botao, { BackgroundColor3 = base() }, 0.08)
+            C.tween(escala, { Scale = 1 }, 0.1)
+        end)
         if p.OnClick then botao.MouseButton1Click:Connect(p.OnClick) end
         return botao
     end
 
     function C.pintar(botao, cor)
+        local g = botao:FindFirstChild("Degrade")
+        if g then
+            g.Enabled = cor == Tema.rosa
+            if cor == Tema.rosa then cor = BRANCO end
+        end
         botao:SetAttribute("CorBase", cor)
         C.tween(botao, { BackgroundColor3 = cor })
     end
@@ -192,8 +231,30 @@ return function(App)
                 Font = Tema.fonteMono, TextColor3 = Tema.rosa, TextXAlignment = Enum.TextXAlignment.Center,
             })
         end
-        caixa.Focused:Connect(function() C.tween(borda, { Color = Tema.rosa }) end)
-        caixa.FocusLost:Connect(function() C.tween(borda, { Color = Tema.borda }) end)
+        caixa.Focused:Connect(function() C.tween(borda, { Color = Tema.rosa, Thickness = 1.5 }) end)
+        caixa.FocusLost:Connect(function() C.tween(borda, { Color = Tema.borda, Thickness = 1 }) end)
+        return caixa
+    end
+
+    function C.inputSenha(p)
+        local caixa = C.input(p)
+        local dica = caixa.PlaceholderText
+        caixa.PlaceholderText = ""
+        caixa.TextTransparency = 1
+        local mascara = C.texto({
+            Parent = caixa, Size = UDim2.new(1, 0, 1, 0), Font = Tema.fonteMono, TextSize = 11,
+            TextColor3 = Tema.apagado, Text = dica, ZIndex = caixa.ZIndex + 1,
+        })
+        local function desenhar()
+            local n = utf8.len(caixa.Text) or #caixa.Text
+            if n == 0 then
+                mascara.Text, mascara.TextColor3 = dica, Tema.apagado
+            else
+                mascara.Text, mascara.TextColor3 = string.rep("•", math.min(n, 40)), Tema.texto
+            end
+        end
+        caixa:GetPropertyChangedSignal("Text"):Connect(desenhar)
+        desenhar()
         return caixa
     end
 
@@ -208,17 +269,20 @@ return function(App)
         end
         local trilho = C.criar("TextButton", {
             Parent = linha, Text = "", AutoButtonColor = false, AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.new(0, 30, 0, 16), BackgroundColor3 = Tema.painel2,
-        }, { C.canto(8), C.borda() })
+            Position = UDim2.new(1, 0, 0.5, 0), Size = UDim2.new(0, 32, 0, 18), BackgroundColor3 = Tema.painel2,
+        }, { C.canto(9), C.borda(Tema.borda, 1, 0.1) })
+        local degrade = C.gradiente(0)
+        degrade.Parent = trilho
         local bolinha = C.criar("Frame", {
-            Parent = trilho, AnchorPoint = Vector2.new(0, 0.5), Size = UDim2.new(0, 10, 0, 10),
+            Parent = trilho, AnchorPoint = Vector2.new(0, 0.5), Size = UDim2.new(0, 12, 0, 12),
             BackgroundColor3 = Tema.texto,
-        }, { C.canto(5) })
+        }, { C.canto(6) })
 
         local valor = p.Valor == true
         local function desenhar(animar)
-            local corTrilho = valor and Tema.rosa or Tema.painel2
-            local posicao = valor and UDim2.new(1, -13, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)
+            degrade.Enabled = valor
+            local corTrilho = valor and Color3.new(1, 1, 1) or Tema.painel2
+            local posicao = valor and UDim2.new(1, -15, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)
             if animar then
                 C.tween(trilho, { BackgroundColor3 = corTrilho })
                 C.tween(bolinha, { Position = posicao })
@@ -273,7 +337,7 @@ return function(App)
         local area = gui:FindFirstChild("Toasts")
         if not area then
             area = C.criar("Frame", {
-                Name = "Toasts", Parent = gui, BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0),
+                Name = "Toasts", Parent = gui, BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0), ZIndex = 60,
                 Position = UDim2.new(0.5, 0, 0, 76), Size = UDim2.new(0, 260, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
             }, {
                 C.criar("UIListLayout", {
@@ -283,25 +347,36 @@ return function(App)
             })
         end
         contadorToast += 1
+        local cards = {}
+        for _, f in ipairs(area:GetChildren()) do
+            if f:IsA("Frame") then table.insert(cards, f) end
+        end
+        table.sort(cards, function(a, b) return a.LayoutOrder < b.LayoutOrder end)
+        while #cards >= 4 do table.remove(cards, 1):Destroy() end
+
         local card = C.criar("Frame", {
-            Parent = area, LayoutOrder = contadorToast, BackgroundColor3 = Tema.painel,
+            Parent = area, LayoutOrder = contadorToast, BackgroundColor3 = Tema.painel, BackgroundTransparency = 0.04,
             Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
-        }, { C.canto(6), C.borda(cor, 1, 0.4), C.padding(7, 10, 7, 12) })
+        }, { C.canto(8), C.borda(cor, 1, 0.45), C.padding(8, 10, 8, 14) })
         local faixa = C.criar("Frame", {
-            Parent = card, BackgroundColor3 = cor, BorderSizePixel = 0, Position = UDim2.new(0, -12, 0, -7),
-            Size = UDim2.new(0, 2, 1, 14),
-        })
+            Parent = card, BackgroundColor3 = cor, BorderSizePixel = 0, Position = UDim2.new(0, -14, 0, -8),
+            Size = UDim2.new(0, 3, 1, 16),
+        }, { C.canto(2) })
         local rotulo = C.texto({
-            Parent = card, Text = (Tema.icones[tipo] or "") .. " " .. texto, TextWrapped = true,
+            Parent = card, Text = (Tema.icones[tipo] or "") .. " " .. texto, TextWrapped = true, TextTransparency = 1,
             Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Font = Tema.fonteMono, TextSize = 10,
         })
-        task.delay(4, function()
+        local escala = C.criar("UIScale", { Parent = card, Scale = 0.9 })
+        C.tween(escala, { Scale = 1 }, 0.18)
+        C.tween(rotulo, { TextTransparency = 0 }, 0.18)
+        task.delay(4.5, function()
             if not card.Parent then return end
             C.tween(card, { BackgroundTransparency = 1 }, 0.3)
             C.tween(rotulo, { TextTransparency = 1 }, 0.3)
             C.tween(faixa, { BackgroundTransparency = 1 }, 0.3)
+            C.tween(escala, { Scale = 0.92 }, 0.3)
             task.wait(0.3)
-            card:Destroy()
+            if card.Parent then card:Destroy() end
         end)
     end
 

@@ -41,17 +41,67 @@ return function(App)
         return true
     end
 
+    local function site(p, estado, detalhe)
+        if p and p.siteId and App.Site then App.Site.reportar(p, estado, detalhe) end
+    end
+
+    function Fila.adicionarSite(item)
+        local nick = string.gsub(Utils.limpar(tostring(item.nick or "")), "^@", "")
+        local casa = Utils.limpar(tostring(item.casa or ""))
+        if not string.match(nick, "^[%w_]+$") or #nick < 3 or #nick > 20 then return false end
+        if casa == "" or #casa > 40 then return false end
+        for _, p in ipairs(pedidos) do
+            if p.siteId == item.id then return false end
+        end
+        local info
+        for _, c in ipairs(E.todasAsCasas) do
+            if Utils.normalizar(c.nomeOriginal or c.nome) == Utils.normalizar(casa) then info = c break end
+        end
+        table.insert(pedidos, {
+            nick = nick,
+            casa = casa,
+            nomeOriginal = casa,
+            tipo = info and info.tipoCasa or nil,
+            estado = "esperando",
+            siteId = item.id,
+            pedidoSite = item.pedido,
+            detalhe = item.pedido and ("site #" .. tostring(item.pedido)) or "site",
+        })
+        avisar()
+        return true
+    end
+
+    function Fila.sincronizarSite(ativos)
+        local saiu = {}
+        for i = #pedidos, 1, -1 do
+            local p = pedidos[i]
+            if p.siteId and not ativos[p.siteId] then
+                if not (rodando and i == 1) then
+                    table.remove(pedidos, i)
+                    table.insert(saiu, p.siteId)
+                elseif p.estado == "entregando" and App.Trade.estado() == "ativo" and not App.Trade.emTrade() then
+                    p.detalhe = "cancelado no site"
+                    pular = true
+                    table.insert(saiu, p.siteId)
+                end
+            end
+        end
+        if #saiu > 0 then avisar() end
+        return saiu
+    end
+
     function Fila.remover(i)
         local p = pedidos[i]
         if p and not (rodando and i == 1) then
             table.remove(pedidos, i)
+            site(p, "pulado", "tirado da fila no script")
             avisar()
         end
     end
 
     function Fila.limpar()
         for i = #pedidos, 1, -1 do
-            if not (rodando and i == 1) then table.remove(pedidos, i) end
+            if not (rodando and i == 1) then site(table.remove(pedidos, i), "pulado", "fila limpa no script") end
         end
         avisar()
     end
@@ -62,12 +112,13 @@ return function(App)
 
     function Fila.parar()
         if not rodando then return end
-        rodando, pular = false, true
+        rodando = false
         Utils.setStatus("Parando a fila...", "aviso")
     end
 
     local function concluir(p, estado, detalhe)
         p.estado, p.detalhe = estado, detalhe
+        site(p, estado, detalhe)
         table.insert(feitos, 1, { nick = p.nick, casa = p.casa, estado = estado, hora = os.date("%H:%M") })
         while #feitos > 10 do table.remove(feitos) end
     end
@@ -86,6 +137,7 @@ return function(App)
     local function entregar(p)
         p.estado, p.detalhe = "entregando", nil
         pular = false
+        site(p, "entregando")
         avisar()
         Utils.setStatus(string.format("Fila %d/%d: '%s' para @%s", feitosNaRodada + 1, feitosNaRodada + #pedidos, p.casa, p.nick), "espera")
 
@@ -141,6 +193,7 @@ return function(App)
                     break
                 elseif estado == "erro" then
                     p.estado, p.detalhe = "erro", detalhe
+                    site(p, "erro", detalhe)
                     rodando = false
                     Utils.setStatus("Fila parada: '" .. p.casa .. "' (" .. tostring(detalhe) .. ")", "erro")
                     break

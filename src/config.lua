@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "6.7"
+Config.VERSAO = "7.0"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -65,6 +65,11 @@ Config.SAMHUB = {
     CONFERIR_VENDA    = true,
     CONFERIR_ENTREGA  = true,
     AUTO_CASH_OUT     = true,
+    ANTI_AFK          = true,
+    SITE_URL           = "https://hnvlcanhywxsgdoromba.supabase.co",
+    SITE_CHAVE_PUBLICA = "sb_publishable_zg-cjy13XFwpmc2muNxFOg_vsM8h7sI",
+    SITE_LIGADO       = true,
+    SITE_AUTO_FILA    = true,
     TEMPO_ESTAVEL     = 1.5,
     DELAY_MIN         = 0.8,
     DELAY_MAX         = 2.5,
@@ -83,7 +88,7 @@ Config.SAMHUB = {
 Config.AJUSTES_SALVOS = {
     "RECUSAR_OUTROS", "ACEITAR_PEDIDO", "VERIFICAR_CASA", "LISTAR_AO_ATIVAR",
     "ANDAR_ATE_CAIXA", "CONFERIR_VENDA", "CAIXAS", "CAIXA_OBJETO", "MINIMIZAR_AUTO", "POPUPS",
-    "TEMPO_ESTAVEL", "DELAY_MIN", "DELAY_MAX", "CONFERIR_ENTREGA", "AUTO_CASH_OUT",
+    "TEMPO_ESTAVEL", "DELAY_MIN", "DELAY_MAX", "CONFERIR_ENTREGA", "AUTO_CASH_OUT", "ANTI_AFK", "SITE_LIGADO", "SITE_AUTO_FILA",
 }
 
 Config.PLACEHOLDERS = {

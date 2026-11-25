@@ -306,7 +306,7 @@ return function(App)
     Utils.esconderMenuSeCobrir = nil
     Utils.metodoClique = nil
     Utils.ultimoClique = 0
-    Utils.ignorarTextoAoRedor = false
+    Utils.ignorarTextoAoRedor = nil
 
     function Utils.temProibida(texto)
         texto = string.lower(Utils.limpar(texto or ""))
@@ -331,7 +331,8 @@ return function(App)
         local objetos = objetosNoPonto(p)
         local primeiroBotao, alvoNoPonto = nil, false
         for _, o in ipairs(objetos) do
-            if not Utils.ignorarTextoAoRedor and (o:IsA("TextLabel") or o:IsA("TextButton")) and Utils.temProibida(o.Text) then
+            local liberado = alvo ~= nil and Utils.ignorarTextoAoRedor == alvo
+            if not liberado and (o:IsA("TextLabel") or o:IsA("TextButton")) and Utils.temProibida(o.Text) then
                 return false, "texto proibido no ponto: " .. o.Text
             end
             if not primeiroBotao and o:IsA("GuiButton") then primeiroBotao = o end
@@ -366,9 +367,10 @@ return function(App)
         return nil
     end
 
-    local function afastarMouse()
+    local cliqueAtual = 0
+    local function afastarMouse(meu)
         local camera = workspace.CurrentCamera
-        if not VIM or not camera then return end
+        if not VIM or not camera or meu ~= cliqueAtual then return end
         local v = camera.ViewportSize
         for _, f in ipairs({ Vector2.new(0.5, 0.35), Vector2.new(0.25, 0.5), Vector2.new(0.75, 0.5), Vector2.new(0.5, 0.65) }) do
             local p = Vector2.new(v.X * f.X, v.Y * f.Y)
@@ -386,6 +388,8 @@ return function(App)
 
     local function clicarPonto(pGui, alvo)
         if not VIM then return false end
+        cliqueAtual += 1
+        local meu = cliqueAtual
         local restaurar = Utils.esconderMenuSeCobrir and Utils.esconderMenuSeCobrir(pGui)
         if restaurar then task.wait(0.05) end
         local function fim(resultado)
@@ -415,7 +419,7 @@ return function(App)
             task.wait(0.08)
             VIM:SendMouseButtonEvent(tela.X, tela.Y, 0, false, game, 0)
         end)
-        if alvo then task.delay(0.2, afastarMouse) end
+        if alvo then task.delay(0.2, afastarMouse, meu) end
         return fim(feito)
     end
 
