@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "6.6"
+Config.VERSAO = "6.7"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -49,6 +49,9 @@ Config.SAMHUB = {
     TEXTO_CASH_OUT     = { "Cash Out", "Cash out", "Sacar" },
     TEXTOS_CHEQUE      = { "do not show again", "bank of adopt me", "pay to the order", "playing adopt me" },
     TEXTOS_NAO_MOSTRAR = { "do not show again", "don't show again", "dont show again", "não mostrar" },
+
+    TEXTOS_PEDIDO_TRADE  = { "sent you a trade request", "trade request", "wants to trade" },
+    TEXTO_RECUSAR_PEDIDO = { "Decline", "Recusar" },
 
     PALAVRAS_PEDIDO = { "trade request", "sent you a trade", "trade", "troca", "trocar", "negociar" },
 

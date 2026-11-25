@@ -171,6 +171,72 @@ return function(App)
         return nil
     end
 
+    local function podeSerComprador(texto, nomeLido)
+        local comprador = E.userIdAlvo and Players:GetPlayerByUserId(E.userIdAlvo)
+        local nomes = { string.lower(E.nickAlvo or "") }
+        if comprador then
+            table.insert(nomes, string.lower(comprador.Name))
+            table.insert(nomes, string.lower(comprador.DisplayName))
+        end
+        local lido = string.gsub(string.lower(nomeLido or ""), "[%.…]+$", "")
+        lido = string.gsub(lido, "^@", "")
+        for _, n in ipairs(nomes) do
+            if n ~= "" then
+                if Utils.temPalavra(texto, n) then return true end
+                if #lido >= 3 and string.sub(n, 1, #lido) == lido then return true end
+            end
+        end
+        return false
+    end
+
+    local function pedidoDeOutro()
+        local vistos = {}
+        for _, d in ipairs(PlayerGui:GetDescendants()) do
+            if (d:IsA("TextLabel") or d:IsA("TextButton")) and Utils.naTela(d) then
+                local t = string.lower(Utils.limpar(d.Text))
+                if Utils.temAlguma(t, S.TEXTOS_PEDIDO_TRADE) then
+                    local quadro = d.Parent
+                    for _ = 1, 8 do
+                        if not quadro or quadro:IsA("LayerCollector") or vistos[quadro] then break end
+                        vistos[quadro] = true
+                        local recusar = Utils.acharBotao(quadro, S.TEXTO_RECUSAR_PEDIDO, S.NOMES_RECUSAR)
+                        local aceitar = Utils.acharBotao(quadro, S.TEXTO_ACEITAR, S.NOMES_ACEITAR)
+                        if recusar and aceitar then
+                            local tudo = string.lower(Utils.textos(quadro))
+                            local nome = string.match(tudo, "([^%s|]+)%s+sent you a trade")
+                                or string.match(tudo, "([^%s|]+)%s+wants to trade") or "?"
+                            if podeSerComprador(tudo, nome) then return nil end
+                            return recusar, quadro, nome
+                        end
+                        quadro = quadro.Parent
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    local recusadoHa = {}
+    local function recusarPedidoDeOutro()
+        local botao, quadro, nome = pedidoDeOutro()
+        if not botao then return false end
+        Utils.trabalhando()
+        task.wait(0.3 + math.random() * 0.5)
+        if not botao.Parent or not Utils.naTela(botao) then return false end
+        local ok = Utils.clicar(botao, quadro)
+        if ok then
+            Utils.setStatus("Recusei o pedido de " .. nome .. " (não é @" .. E.nickAlvo .. ")", "aviso")
+            if os.clock() - (recusadoHa[nome] or -999) > 60 then
+                recusadoHa[nome] = os.clock()
+                Historico.registrar(nome, nil, "recusado", "pedido de trade (não é o comprador)")
+            end
+        else
+            Utils.setStatus("Não consegui apertar Decline no pedido de " .. nome, "aviso")
+        end
+        task.wait(0.5)
+        return ok
+    end
+
     local function aceitarPedido()
         local botao, quadro, comprador = acharPedido()
         if not botao then return false end
@@ -293,6 +359,7 @@ return function(App)
     Trade.sucessoNaTela = sucessoNaTela
 
     local function entregaConcluida(nick, userId)
+        if App.Casa and App.Casa.esquecerCasaAtual then App.Casa.esquecerCasaAtual() end
         local marcada = next(E.casasSelecionadas)
         local detalhe, problema = "casa entregue ✅", nil
         if S.CONFERIR_ENTREGA and App.Casa and App.Casa.conferirEntrega then
@@ -487,8 +554,8 @@ return function(App)
                         if janela then
                             Utils.trabalhando()
                             processar(janela, jogador, texto, erro)
-                        elseif S.ACEITAR_PEDIDO then
-                            aceitarPedido()
+                        elseif not (S.ACEITAR_PEDIDO and aceitarPedido()) and S.RECUSAR_OUTROS then
+                            recusarPedidoDeOutro()
                         end
                     end)
                     if not ok then

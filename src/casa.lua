@@ -153,6 +153,18 @@ return function(App)
     end
 
     local tipoAtual = nil
+    local casaAtual = nil
+    local goFalhouPara = nil
+
+    local function mesmaCasa(a, b)
+        if not a or not b then return false end
+        if Utils.normalizar(a.nomeOriginal or a.nome) ~= Utils.normalizar(b.nomeOriginal or b.nome) then return false end
+        return not a.tipo or not b.tipo or Utils.normalizar(a.tipo) == Utils.normalizar(b.tipo)
+    end
+
+    function Casa.esquecerCasaAtual()
+        casaAtual = nil
+    end
 
     local function modeloDaCasa(placa)
         if not placa or not placa.peca then return nil end
@@ -1043,6 +1055,7 @@ return function(App)
         if not painel then return false end
 
         Utils.setStatus("Procurando a casa '" .. alvo.nome .. "'" .. (alvo.tipo and (" (" .. alvo.tipo .. ")") or "") .. "...", "espera")
+        local marcadaAoAbrir = selecionada(casas)
         local casa, lido = localizarCasa(painel, lista, casas, alvo)
         if not casa then
             local nomes = {}
@@ -1104,7 +1117,14 @@ return function(App)
                 return resposta
             end
 
-            local apertou = Utils.clicar(mudar, painel, trocou, 2.5, 2)
+            local precisaTrocar
+            if casaAtual then
+                precisaTrocar = not mesmaCasa(casaAtual, alvo)
+            else
+                precisaTrocar = marcadaAoAbrir ~= casa
+            end
+
+            local apertou = Utils.clicar(mudar, painel, trocou, 2.5, precisaTrocar and 4 or 2)
             if not apertou then esperar(trocou, 1.5) end
             if conexaoModelo then conexaoModelo:Disconnect() end
             task.wait(0.2)
@@ -1123,8 +1143,15 @@ return function(App)
             fecharPainel(painel)
             placaGuardada = nil
             if confirmado then
+                casaAtual, goFalhouPara = { nomeOriginal = alvo.nomeOriginal or alvo.nome, tipo = lido or alvo.tipo }, nil
                 Utils.setStatus("Casa trocada para '" .. casa.nome .. "'. Indo pôr à venda...", "espera")
+            elseif precisaTrocar and goFalhouPara ~= alvo.nome then
+                goFalhouPara = alvo.nome
+                Utils.setStatus("Apertei o Go! da '" .. casa.nome .. "', mas a casa não trocou. Parei para não pôr outra casa à venda. "
+                    .. "Se o Go! estiver travado, saia e entre no jogo.", "erro")
+                return false
             else
+                goFalhouPara = nil
                 Utils.setStatus("'" .. casa.nome .. "' já parece ser a casa atual. Indo pôr à venda...", "espera")
             end
             return "mudou", confirmado
@@ -1170,10 +1197,13 @@ return function(App)
         task.wait(0.5)
         local aVenda = verificarCasa(alvo)
         if aVenda == true then
+            casaAtual = { nomeOriginal = alvo.nomeOriginal or alvo.nome, tipo = alvo.tipo or tipoAtual }
             Utils.setStatus("'" .. nomeAlvo .. "' à venda ✅", "ok")
             return true
         end
-        Utils.setStatus("Listei, mas '" .. nomeAlvo .. "' não aparece como à venda. Confira na lista HOMES.", "erro")
+        casaAtual = nil
+        Utils.setStatus("Listei, mas '" .. nomeAlvo .. "' não aparece como à venda: a casa atual era outra. "
+            .. "Tire ela da venda (Unlist) e tente de novo.", "erro")
         return false
     end
 
@@ -1277,6 +1307,7 @@ return function(App)
     end
 
     function Casa.conferirEntrega(nomeMarcado, manterAberto)
+        casaAtual = nil
         local info = Casa.ultimaEntrega
         Casa.ultimaEntrega = nil
         local alvo, antes

@@ -366,6 +366,24 @@ return function(App)
         return nil
     end
 
+    local function afastarMouse()
+        local camera = workspace.CurrentCamera
+        if not VIM or not camera then return end
+        local v = camera.ViewportSize
+        for _, f in ipairs({ Vector2.new(0.5, 0.35), Vector2.new(0.25, 0.5), Vector2.new(0.75, 0.5), Vector2.new(0.5, 0.65) }) do
+            local p = Vector2.new(v.X * f.X, v.Y * f.Y)
+            local livre = true
+            for _, o in ipairs(objetosNoPonto(p)) do
+                if o:IsA("GuiButton") then livre = false break end
+            end
+            if livre then
+                local tela = paraTela(p)
+                pcall(function() VIM:SendMouseMoveEvent(tela.X, tela.Y, game) end)
+                return
+            end
+        end
+    end
+
     local function clicarPonto(pGui, alvo)
         if not VIM then return false end
         local restaurar = Utils.esconderMenuSeCobrir and Utils.esconderMenuSeCobrir(pGui)
@@ -394,9 +412,10 @@ return function(App)
         Utils.ultimoClique = os.clock()
         local feito = pcall(function()
             VIM:SendMouseButtonEvent(tela.X, tela.Y, 0, true, game, 0)
-            task.wait(0.06)
+            task.wait(0.08)
             VIM:SendMouseButtonEvent(tela.X, tela.Y, 0, false, game, 0)
         end)
+        if alvo then task.delay(0.2, afastarMouse) end
         return fim(feito)
     end
 
@@ -414,24 +433,56 @@ return function(App)
         end))
     end
 
-    local function cliqueConexoes(botao)
-        if not Utils.recursos.getconnections or not botao:IsA("GuiButton") then return false end
-        for _, nome in ipairs({ "Activated", "MouseButton1Click", "MouseButton1Down" }) do
-            local ok, conexoes = pcall(getconnections, botao[nome])
-            if ok and conexoes and #conexoes > 0 then
-                Utils.ultimoClique = os.clock()
-                for _, c in ipairs(conexoes) do
-                    pcall(function() c:Fire() end)
-                end
-                return true
-            end
-        end
-        return false
+    local function conexoesDe(sinal)
+        local ok, lista = pcall(getconnections, sinal)
+        return (ok and type(lista) == "table") and lista or {}
     end
 
-    local function cliqueFiresignal(botao)
-        if not Utils.recursos.firesignal or not botao:IsA("GuiButton") then return false end
+    local function dispararTodas(lista, ...)
+        local args = table.pack(...)
+        for _, c in ipairs(lista) do
+            pcall(function() c:Fire(table.unpack(args, 1, args.n)) end)
+        end
+    end
+
+    local function centroDe(botao)
+        return botao.AbsolutePosition + botao.AbsoluteSize / 2
+    end
+
+    local function cliqueConexoes(botao, deu)
+        if not Utils.recursos.getconnections or not botao:IsA("GuiButton") then return false end
+        local baixo, cima = conexoesDe(botao.MouseButton1Down), conexoesDe(botao.MouseButton1Up)
+        local ativado, clique = conexoesDe(botao.Activated), conexoesDe(botao.MouseButton1Click)
+        if #baixo + #cima + #ativado + #clique == 0 then return false end
+        local c = centroDe(botao)
         Utils.ultimoClique = os.clock()
+        dispararTodas(baixo, c.X, c.Y)
+        task.wait(0.08)
+        dispararTodas(cima, c.X, c.Y)
+        task.wait(0.15)
+        if deu() then return true end
+        if #ativado > 0 then
+            dispararTodas(ativado)
+            if #clique == 0 then return true end
+            task.wait(0.4)
+            if deu() then return true end
+        end
+        dispararTodas(clique)
+        return true
+    end
+
+    local function cliqueFiresignal(botao, deu)
+        if not Utils.recursos.firesignal or Utils.recursos.getconnections or not botao:IsA("GuiButton") then return false end
+        local c = centroDe(botao)
+        Utils.ultimoClique = os.clock()
+        pcall(firesignal, botao.MouseButton1Down, c.X, c.Y)
+        task.wait(0.08)
+        pcall(firesignal, botao.MouseButton1Up, c.X, c.Y)
+        task.wait(0.15)
+        if deu() then return true end
+        pcall(firesignal, botao.Activated)
+        task.wait(0.4)
+        if deu() then return true end
         return (pcall(firesignal, botao.MouseButton1Click))
     end
 
@@ -461,7 +512,7 @@ return function(App)
         Utils.ultimoClique = os.clock()
         local ok = pcall(function()
             VIM:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
-            task.wait(0.05)
+            task.wait(0.06)
             VIM:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
         end)
         task.delay(0.1, devolver)
@@ -477,20 +528,44 @@ return function(App)
         end)
     end
 
+    local function trazerParaVista(botao)
+        local rolagem = botao:FindFirstAncestorWhichIsA("ScrollingFrame")
+        if not rolagem then return end
+        for _ = 1, 3 do
+            local topo = rolagem.AbsolutePosition
+            local base = topo + rolagem.AbsoluteWindowSize
+            local p, t = botao.AbsolutePosition, botao.AbsoluteSize
+            local dx, dy = 0, 0
+            if p.Y < topo.Y then dy = p.Y - topo.Y - 4 elseif p.Y + t.Y > base.Y then dy = p.Y + t.Y - base.Y + 4 end
+            if p.X < topo.X then dx = p.X - topo.X - 4 elseif p.X + t.X > base.X then dx = p.X + t.X - base.X + 4 end
+            if dx == 0 and dy == 0 then return end
+            pcall(function() rolagem.CanvasPosition = rolagem.CanvasPosition + Vector2.new(dx, dy) end)
+            task.wait(0.1)
+        end
+    end
+
     local function cliqueMouse(botao)
-        return clicarPonto(botao.AbsolutePosition + botao.AbsoluteSize / 2, botao)
+        return clicarPonto(centroDe(botao), botao)
     end
 
     local METODOS = {
+        { nome = "toque", fn = cliqueMouse },
+        { nome = "seleção", fn = cliqueSelecao },
         { nome = "conexões", fn = cliqueConexoes },
         { nome = "firesignal", fn = cliqueFiresignal },
-        { nome = "seleção", fn = cliqueSelecao },
-        { nome = "mouse", fn = cliqueMouse },
     }
+
+    local toqueIgnorado = 0
 
     function Utils.clicar(botao, raiz, confirmar, espera, maxDisparos)
         raiz = raiz or botao:FindFirstAncestorWhichIsA("LayerCollector") or botao
-        if not botao.Parent or not Utils.naTela(botao) then return false, nil, 0 end
+        if not botao.Parent then return false, nil, 0 end
+        if not Utils.naTela(botao) then
+            local rolagem = Utils.visivel(botao) and botao:FindFirstAncestorWhichIsA("ScrollingFrame")
+            if not (rolagem and Utils.naTela(rolagem)) then return false, nil, 0 end
+            trazerParaVista(botao)
+            if not Utils.naTela(botao) then return false, nil, 0 end
+        end
 
         local proibida = Utils.temProibida(Utils.textoDe(botao))
         if proibida then
@@ -498,40 +573,45 @@ return function(App)
             return false, nil, 0
         end
 
-        local ordem = {}
-        for _, m in ipairs(METODOS) do
-            if m.nome == Utils.metodoClique then table.insert(ordem, 1, m) else table.insert(ordem, m) end
+        local ordem = table.clone(METODOS)
+        if toqueIgnorado >= 3 then
+            table.insert(ordem, table.remove(ordem, 1))
         end
 
-        local disparos, ultimo = 0, nil
+        local disparos, ultimo, toqueFalhou = 0, nil, false
+        local function sucesso(nome)
+            Utils.metodoClique = nome
+            if nome == "toque" then
+                toqueIgnorado = 0
+            elseif toqueFalhou then
+                toqueIgnorado += 1
+            end
+            return true, nome, disparos
+        end
+
         for _, metodo in ipairs(ordem) do
             if maxDisparos and disparos >= maxDisparos then break end
             if disparos > 0 then
-                if confirmar and confirmar() then return true, ultimo, disparos end
-                if not confirmar and (not botao.Parent or not Utils.naTela(botao)) then
-                    return true, ultimo, disparos
-                end
+                if confirmar and confirmar() then return sucesso(ultimo) end
+                if not confirmar and (not botao.Parent or not Utils.naTela(botao)) then return sucesso(ultimo) end
                 if not botao.Parent then break end
             end
             local antes = Utils.assinatura(raiz)
-            if metodo.fn(botao) then
+            local function deu()
+                if confirmar then return confirmar() and true or false end
+                return not botao.Parent or not Utils.naTela(botao) or Utils.assinatura(raiz) ~= antes
+            end
+            if metodo.fn(botao, deu) then
                 disparos += 1
                 ultimo = metodo.nome
                 local t = 0
                 while t < (espera or 1.5) do
+                    if deu() then return sucesso(metodo.nome) end
                     task.wait(0.15)
                     t += 0.15
-                    local deu
-                    if confirmar then
-                        deu = confirmar()
-                    else
-                        deu = not botao.Parent or not Utils.naTela(botao) or Utils.assinatura(raiz) ~= antes
-                    end
-                    if deu then
-                        Utils.metodoClique = metodo.nome
-                        return true, metodo.nome, disparos
-                    end
                 end
+                if deu() then return sucesso(metodo.nome) end
+                if metodo.nome == "toque" then toqueFalhou = true end
             end
         end
         return false, nil, disparos
