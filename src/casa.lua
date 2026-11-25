@@ -896,8 +896,10 @@ return function(App)
     local function escolherNoPainel(painel, casas, casa)
         if selecionada(casas) == casa then return end
         local antes = Utils.assinatura(painel)
-        Utils.clicar(casa.cartao, painel)
-        esperar(function() return Utils.assinatura(painel) ~= antes end, 1.5)
+        Utils.clicar(casa.cartao, painel, function()
+            return selecionada(casas) == casa or Utils.assinatura(painel) ~= antes
+        end, 1.5, 2)
+        esperar(function() return selecionada(casas) == casa or Utils.assinatura(painel) ~= antes end, 1)
         task.wait(0.2)
     end
 

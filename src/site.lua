@@ -158,8 +158,12 @@ return function(App)
         local minha = geracao
         task.spawn(function()
             while minha == geracao and sessao do
-                if S.SITE_LIGADO then pcall(buscar) end
-                for _ = 1, 12 do
+                if S.SITE_LIGADO then
+                    pcall(buscar)
+                else
+                    pcall(chamar, "samhub_ping", { p_roblox = meuNick() })
+                end
+                for _ = 1, 30 do
                     if minha ~= geracao then return end
                     task.wait(1)
                 end
@@ -204,6 +208,41 @@ return function(App)
             task.spawn(rpc, "samhub_sair", { p_token = antiga.token })
         end
         Site.PedirLogin:Fire()
+    end
+
+    Site.estado.casasEnviadas = nil
+    function Site.enviarCasas(casas)
+        if not sessao then
+            Utils.notificar("🌐 Entre no site (aba 🌐) para mandar as casinhas.", "aviso")
+            return false
+        end
+        local lista = {}
+        for _, c in ipairs(casas or {}) do
+            if type(c) == "table" and type(c.nome) == "string" and c.nome ~= "" then
+                table.insert(lista, {
+                    nome = string.sub(c.nome, 1, 40),
+                    tipo = type(c.tipoCasa) == "string" and string.sub(c.tipoCasa, 1, 40) or nil,
+                    venda = c.aVenda == true,
+                })
+            end
+            if #lista >= 300 then break end
+        end
+        if #lista == 0 then
+            Utils.notificar("🌐 Nenhuma casinha para mandar: abra o MY HOMES e toque em ESCANEAR.", "aviso")
+            return false
+        end
+        task.spawn(function()
+            local ok, r = chamar("samhub_casas_enviar", { p_casas = lista })
+            if ok then
+                local n = type(r) == "table" and tonumber(r.casas) or #lista
+                Site.estado.casasEnviadas = { n = n, hora = os.date("%H:%M") }
+                Utils.notificar(string.format("🌐 %d casinha(s) enviada(s) para o site", n), "ok")
+                Site.Mudou:Fire()
+            elseif sessao then
+                Utils.notificar("🌐 Não consegui mandar as casinhas: " .. tostring(r), "erro")
+            end
+        end)
+        return true
     end
 
     function Site.buscarAgora()

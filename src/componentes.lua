@@ -153,30 +153,46 @@ return function(App)
         local primario = variante == "primario"
         local botao = C.criar("TextButton", {
             Parent = p.Parent, Text = p.Texto, Size = p.Size, Position = p.Position or UDim2.new(),
-            LayoutOrder = p.LayoutOrder or 0, BackgroundColor3 = primario and BRANCO or cor, AutoButtonColor = false,
+            LayoutOrder = p.LayoutOrder or 0, BackgroundColor3 = cor, AutoButtonColor = false,
             Font = Tema.fonteForte, TextSize = p.TextSize or 11, TextColor3 = Tema.texto,
         }, { C.canto(6) })
         if variante == "secundario" then C.borda(Tema.borda, 1, 0.1).Parent = botao end
+
+        local fundo = botao
         if primario then
+            botao.BackgroundTransparency = 1
+            botao.TextTransparency = 1
+            fundo = C.criar("Frame", {
+                Name = "Fundo", Parent = botao, Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = BRANCO,
+                BorderSizePixel = 0,
+            }, { C.canto(6) })
             local g = C.gradiente(20)
             g.Name = "Degrade"
-            g.Parent = botao
+            g.Parent = fundo
+            local rotulo = C.criar("TextLabel", {
+                Name = "Rotulo", Parent = botao, BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
+                Text = botao.Text, Font = botao.Font, TextSize = botao.TextSize, TextColor3 = botao.TextColor3,
+                TextWrapped = true, TextTruncate = Enum.TextTruncate.AtEnd,
+            })
+            for _, prop in ipairs({ "Text", "Font", "TextSize", "TextColor3" }) do
+                botao:GetPropertyChangedSignal(prop):Connect(function() rotulo[prop] = botao[prop] end)
+            end
         end
-        botao:SetAttribute("CorBase", primario and BRANCO or cor)
+        fundo:SetAttribute("CorBase", primario and BRANCO or cor)
         local escala = C.criar("UIScale", { Parent = botao })
 
-        local function base() return botao:GetAttribute("CorBase") end
-        botao.MouseEnter:Connect(function() C.tween(botao, { BackgroundColor3 = clarear(base()) }) end)
+        local function base() return fundo:GetAttribute("CorBase") end
+        botao.MouseEnter:Connect(function() C.tween(fundo, { BackgroundColor3 = clarear(base()) }) end)
         botao.MouseLeave:Connect(function()
-            C.tween(botao, { BackgroundColor3 = base() })
+            C.tween(fundo, { BackgroundColor3 = base() })
             C.tween(escala, { Scale = 1 }, 0.1)
         end)
         botao.MouseButton1Down:Connect(function()
-            C.tween(botao, { BackgroundColor3 = escurecer(base()) }, 0.06)
+            C.tween(fundo, { BackgroundColor3 = escurecer(base()) }, 0.06)
             C.tween(escala, { Scale = 0.96 }, 0.06)
         end)
         botao.MouseButton1Up:Connect(function()
-            C.tween(botao, { BackgroundColor3 = base() }, 0.08)
+            C.tween(fundo, { BackgroundColor3 = base() }, 0.08)
             C.tween(escala, { Scale = 1 }, 0.1)
         end)
         if p.OnClick then botao.MouseButton1Click:Connect(p.OnClick) end
@@ -184,13 +200,14 @@ return function(App)
     end
 
     function C.pintar(botao, cor)
-        local g = botao:FindFirstChild("Degrade")
+        local fundo = botao:FindFirstChild("Fundo") or botao
+        local g = fundo:FindFirstChild("Degrade")
         if g then
             g.Enabled = cor == Tema.rosa
             if cor == Tema.rosa then cor = BRANCO end
         end
-        botao:SetAttribute("CorBase", cor)
-        C.tween(botao, { BackgroundColor3 = cor })
+        fundo:SetAttribute("CorBase", cor)
+        C.tween(fundo, { BackgroundColor3 = cor })
     end
 
     function C.sombra(pai, tamanho, posicao, ancora, raio)

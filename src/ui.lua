@@ -898,7 +898,7 @@ return function(App)
             TextWrapped = true, Font = Tema.fonteMono, TextSize = 10, TextColor3 = Tema.suave, Text = "",
         })
         for i, t in ipairs({
-            { "SITE_LIGADO", "Buscar pedidos do site", "a cada 12 segundos" },
+            { "SITE_LIGADO", "Buscar pedidos do site", "a cada 30 segundos" },
             { "SITE_AUTO_FILA", "Começar a fila sozinho", "quando chegar casinha nova" },
         }) do
             C.toggle({
@@ -913,6 +913,16 @@ return function(App)
             Parent = listaAjSite, LayoutOrder = 10, Texto = "BUSCAR AGORA", Size = UDim2.new(1, 0, 0, 22), TextSize = 10,
             OnClick = function() Site.buscarAgora() end,
         })
+        C.botao({
+            Parent = listaAjSite, LayoutOrder = 11, Texto = "MANDAR CASINHAS PRO SITE", Size = UDim2.new(1, 0, 0, 22), TextSize = 10,
+            OnClick = function()
+                if #E.todasAsCasas == 0 then
+                    Utils.notificar("Abra o MY HOMES no jogo e toque em ESCANEAR (aba Entrega) primeiro.", "aviso")
+                else
+                    Site.enviarCasas(E.todasAsCasas)
+                end
+            end,
+        })
 
         local function renderSite()
             local st = Site.estado
@@ -920,8 +930,9 @@ return function(App)
             textoConta.Text = string.format('<font color="%s">%s</font> %s\n<font color="#605672">%s</font>',
                 cor, se(st.logado, "●", "○"), Utils.escaparRich(st.conta or "sem conta"), Utils.escaparRich(st.texto or ""))
             botaoEntrarSite.Text = se(st.logado, "TROCAR CONTA", "ENTRAR")
-            infoSite.Text = string.format("> para esta conta: %d casinha(s)\n> última busca: %s",
-                st.naFila or 0, st.ultimaBusca or "-")
+            infoSite.Text = string.format("> para esta conta: %d casinha(s)\n> última busca: %s\n> casinhas no site: %s",
+                st.naFila or 0, st.ultimaBusca or "-",
+                st.casasEnviadas and string.format("%d (às %s)", st.casasEnviadas.n, st.casasEnviadas.hora) or "escaneie para mandar")
         end
         maid:Add(Site.Mudou:Connect(renderSite))
         renderSite()
@@ -1080,13 +1091,12 @@ return function(App)
 
         local bolha = C.criar("TextButton", {
             Parent = gui, Name = "Bolha", Text = "S", AutoButtonColor = false, Visible = false,
-            BackgroundColor3 = Color3.new(1, 1, 1), AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = Tema.painel2, AnchorPoint = Vector2.new(0.5, 0.5),
             Position = UDim2.new(0, 40, 0.5, 0), Size = UDim2.new(0, 42, 0, 42),
             Font = Tema.fonteForte, TextSize = 18, TextColor3 = Tema.texto,
         }, {
             C.criar("UICorner", { CornerRadius = UDim.new(1, 0) }),
             C.bordaNeon(0, 2),
-            C.degrade(Tema.painel2, Tema.fundo, 135),
         })
         local anel = C.criar("Frame", {
             Parent = bolha, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),

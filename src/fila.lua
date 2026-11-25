@@ -61,7 +61,8 @@ return function(App)
             nick = nick,
             casa = casa,
             nomeOriginal = casa,
-            tipo = info and info.tipoCasa or nil,
+            tipo = (type(item.tipo) == "string" and item.tipo ~= "" and string.sub(item.tipo, 1, 40))
+                or (info and info.tipoCasa) or nil,
             estado = "esperando",
             siteId = item.id,
             pedidoSite = item.pedido,

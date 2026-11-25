@@ -191,7 +191,7 @@ return function(App)
             if casa.cartao.Parent and Utils.naTela(casa.cartao) then
                 Utils.setStatus(string.format("Lendo o tipo das casas (%d/%d)...", i, #casas), "espera")
                 local antes = Utils.assinatura(painel)
-                Utils.clicar(casa.cartao, painel)
+                Utils.clicar(casa.cartao, painel, function() return Utils.assinatura(painel) ~= antes end, 1.2, 2)
                 esperarAte(function() return Utils.assinatura(painel) ~= antes end, 1.2)
                 task.wait(0.2)
                 local tipo = Scanner.lerTipo(painel, lista, casa.nomeOriginal)
@@ -236,6 +236,9 @@ return function(App)
         end
 
         Utils.EstadoMudou:Fire()
+        if modo == "cartões" and #casas > 0 and App.Site and App.Site.enviarCasas and App.Site.estado.logado then
+            App.Site.enviarCasas(casas)
+        end
         return casas
     end
 
