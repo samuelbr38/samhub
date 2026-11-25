@@ -1,6 +1,8 @@
 return function(App)
     local Tema = App.Tema
     local TweenService = game:GetService("TweenService")
+    local UIS = game:GetService("UserInputService")
+    local function soToque() return UIS.TouchEnabled and not UIS.MouseEnabled end
 
     local C = {}
 
@@ -182,19 +184,30 @@ return function(App)
         local escala = C.criar("UIScale", { Parent = botao })
 
         local function base() return fundo:GetAttribute("CorBase") end
-        botao.MouseEnter:Connect(function() C.tween(fundo, { BackgroundColor3 = clarear(base()) }) end)
-        botao.MouseLeave:Connect(function()
-            C.tween(fundo, { BackgroundColor3 = base() })
-            C.tween(escala, { Scale = 1 }, 0.1)
-        end)
-        botao.MouseButton1Down:Connect(function()
-            C.tween(fundo, { BackgroundColor3 = escurecer(base()) }, 0.06)
-            C.tween(escala, { Scale = 0.96 }, 0.06)
-        end)
-        botao.MouseButton1Up:Connect(function()
+        local vez = 0
+        local function normal()
+            vez += 1
             C.tween(fundo, { BackgroundColor3 = base() }, 0.08)
             C.tween(escala, { Scale = 1 }, 0.1)
+        end
+        botao.MouseEnter:Connect(function()
+            if soToque() then return end
+            C.tween(fundo, { BackgroundColor3 = clarear(base()) })
         end)
+        botao.MouseLeave:Connect(normal)
+        botao.MouseButton1Down:Connect(function()
+            vez += 1
+            local minha = vez
+            C.tween(fundo, { BackgroundColor3 = escurecer(base()) }, 0.06)
+            C.tween(escala, { Scale = 0.96 }, 0.06)
+            task.delay(0.25, function()
+                if vez == minha then normal() end
+            end)
+        end)
+        botao.MouseButton1Up:Connect(normal)
+        botao.MouseButton1Click:Connect(normal)
+        botao:GetPropertyChangedSignal("Visible"):Connect(normal)
+        botao.AncestryChanged:Connect(function() if botao.Parent then normal() end end)
         if p.OnClick then botao.MouseButton1Click:Connect(p.OnClick) end
         return botao
     end
@@ -226,8 +239,13 @@ return function(App)
             TextSize = 12, TextColor3 = Tema.suave,
         }, { C.canto(5) })
         local corHover = p.CorHover or Tema.texto
-        botao.MouseEnter:Connect(function() C.tween(botao, { BackgroundTransparency = 0, TextColor3 = corHover }) end)
-        botao.MouseLeave:Connect(function() C.tween(botao, { BackgroundTransparency = 1, TextColor3 = Tema.suave }) end)
+        local function normal() C.tween(botao, { BackgroundTransparency = 1, TextColor3 = Tema.suave }) end
+        botao.MouseEnter:Connect(function()
+            if soToque() then return end
+            C.tween(botao, { BackgroundTransparency = 0, TextColor3 = corHover })
+        end)
+        botao.MouseLeave:Connect(normal)
+        botao.MouseButton1Click:Connect(normal)
         if p.OnClick then botao.MouseButton1Click:Connect(p.OnClick) end
         return botao
     end

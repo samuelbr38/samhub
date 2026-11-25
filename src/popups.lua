@@ -184,8 +184,11 @@ return function(App)
         coletar()
         task.spawn(function()
             local ultimaColeta = os.clock()
+            local volta = 0
             while rodando do
                 task.wait(1)
+                volta += 1
+                if volta % 3 == 0 then pcall(Utils.destravarRecentes) end
                 if S.AUTO_CASH_OUT then
                     if os.clock() - ultimaColeta > 10 then
                         ultimaColeta = os.clock()

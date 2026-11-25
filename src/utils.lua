@@ -455,39 +455,46 @@ return function(App)
 
     local function cliqueConexoes(botao, deu)
         if not Utils.recursos.getconnections or not botao:IsA("GuiButton") then return false end
-        local baixo, cima = conexoesDe(botao.MouseButton1Down), conexoesDe(botao.MouseButton1Up)
         local ativado, clique = conexoesDe(botao.Activated), conexoesDe(botao.MouseButton1Click)
+        local baixo, cima = conexoesDe(botao.MouseButton1Down), conexoesDe(botao.MouseButton1Up)
         if #baixo + #cima + #ativado + #clique == 0 then return false end
-        local c = centroDe(botao)
         Utils.ultimoClique = os.clock()
-        dispararTodas(baixo, c.X, c.Y)
-        task.wait(0.08)
-        dispararTodas(cima, c.X, c.Y)
-        task.wait(0.15)
-        if deu() then return true end
         if #ativado > 0 then
             dispararTodas(ativado)
-            if #clique == 0 then return true end
             task.wait(0.4)
             if deu() then return true end
         end
-        dispararTodas(clique)
+        if #clique > 0 then
+            dispararTodas(clique)
+            task.wait(0.4)
+            if deu() then return true end
+        end
+        if #baixo + #cima == 0 then return true end
+        local c = centroDe(botao)
+        dispararTodas(baixo, c.X, c.Y)
+        task.wait(0.08)
+        dispararTodas(cima, c.X, c.Y)
+        task.wait(0.05)
+        dispararTodas(conexoesDe(botao.MouseLeave), c.X, c.Y)
         return true
     end
 
     local function cliqueFiresignal(botao, deu)
         if not Utils.recursos.firesignal or Utils.recursos.getconnections or not botao:IsA("GuiButton") then return false end
-        local c = centroDe(botao)
         Utils.ultimoClique = os.clock()
-        pcall(firesignal, botao.MouseButton1Down, c.X, c.Y)
-        task.wait(0.08)
-        pcall(firesignal, botao.MouseButton1Up, c.X, c.Y)
-        task.wait(0.15)
-        if deu() then return true end
         pcall(firesignal, botao.Activated)
         task.wait(0.4)
         if deu() then return true end
-        return (pcall(firesignal, botao.MouseButton1Click))
+        pcall(firesignal, botao.MouseButton1Click)
+        task.wait(0.4)
+        if deu() then return true end
+        local c = centroDe(botao)
+        pcall(firesignal, botao.MouseButton1Down, c.X, c.Y)
+        task.wait(0.08)
+        pcall(firesignal, botao.MouseButton1Up, c.X, c.Y)
+        task.wait(0.05)
+        pcall(firesignal, botao.MouseLeave, c.X, c.Y)
+        return true
     end
 
     local function cliqueSelecao(botao)
@@ -532,6 +539,113 @@ return function(App)
         end)
     end
 
+    local function fotoGeometria(botao)
+        local foto, n = {}, 0
+        local function guardar(o)
+            if n >= 40 then return end
+            if o:IsA("GuiObject") then
+                foto[o] = { Size = o.Size, Position = o.Position, Rotation = o.Rotation }
+                n += 1
+            elseif o:IsA("UIScale") then
+                foto[o] = { Scale = o.Scale }
+                n += 1
+            end
+        end
+        pcall(function()
+            guardar(botao)
+            for _, d in ipairs(botao:GetDescendants()) do guardar(d) end
+        end)
+        return foto
+    end
+
+    local function encolheu(agora, antes)
+        if agora == antes then return true end
+        if antes == 0 then return false end
+        local r = agora / antes
+        return r >= 0.6 and r < 1
+    end
+    local function soApertado(agora, antes, prop)
+        if prop == "Scale" then return encolheu(agora, antes) end
+        if prop == "Rotation" then return math.abs(agora - antes) <= 10 end
+        if typeof(agora) ~= "UDim2" then return false end
+        if prop == "Size" then
+            local menor = (agora.X.Scale < antes.X.Scale or agora.X.Offset < antes.X.Offset
+                or agora.Y.Scale < antes.Y.Scale or agora.Y.Offset < antes.Y.Offset)
+            return menor and encolheu(agora.X.Scale, antes.X.Scale) and encolheu(agora.Y.Scale, antes.Y.Scale)
+                and encolheu(agora.X.Offset, antes.X.Offset) and encolheu(agora.Y.Offset, antes.Y.Offset)
+        end
+        return math.abs(agora.X.Scale - antes.X.Scale) <= 0.03 and math.abs(agora.Y.Scale - antes.Y.Scale) <= 0.03
+            and math.abs(agora.X.Offset - antes.X.Offset) <= 12 and math.abs(agora.Y.Offset - antes.Y.Offset) <= 12
+    end
+
+    local function mouseEmCima(obj)
+        local p, t = obj.AbsolutePosition, obj.AbsoluteSize
+        local m = Vector2.new(mouse.X, mouse.Y)
+        return m.X >= p.X and m.X <= p.X + t.X and m.Y >= p.Y and m.Y <= p.Y + t.Y
+    end
+
+    local function destravarBotao(botao, foto)
+        if not botao or not botao.Parent or not botao:IsA("GuiObject") then return end
+        pcall(function()
+            if GuiService.SelectedObject == botao then GuiService.SelectedObject = nil end
+        end)
+        if Utils.recursos.getconnections then
+            dispararTodas(conexoesDe(botao.MouseLeave), 0, 0)
+        elseif Utils.recursos.firesignal then
+            pcall(firesignal, botao.MouseLeave, 0, 0)
+        end
+        pcall(function()
+            local estado = botao.GuiState
+            if botao.Interactable and (estado == Enum.GuiState.Press or (estado == Enum.GuiState.Hover and not mouseEmCima(botao))) then
+                botao.Interactable = false
+                task.wait()
+                botao.Interactable = true
+            end
+        end)
+        if not foto then return end
+        local primeiro = {}
+        for o, props in pairs(foto) do
+            if o.Parent and (o == botao or o:IsDescendantOf(botao)) then
+                local v = {}
+                for k in pairs(props) do v[k] = o[k] end
+                primeiro[o] = v
+            end
+        end
+        task.wait(0.2)
+        for o, props in pairs(foto) do
+            local v1 = primeiro[o]
+            if v1 and o.Parent then
+                for k, antes in pairs(props) do
+                    local ok, agora = pcall(function() return o[k] end)
+                    if ok and agora ~= antes and agora == v1[k] and soApertado(agora, antes, k) then
+                        pcall(function() o[k] = antes end)
+                    end
+                end
+            end
+        end
+    end
+
+    local recentes = {}
+    function Utils.destravarRecentes()
+        if os.clock() - (Utils.ultimoClique or 0) < 1.5 then return end
+        local agora = os.clock()
+        for i = #recentes, 1, -1 do
+            local r = recentes[i]
+            if agora - r.t > 90 or not r.botao.Parent then
+                table.remove(recentes, i)
+            else
+                local ok, estado = pcall(function() return r.botao.GuiState end)
+                if ok and (estado == Enum.GuiState.Press or (estado == Enum.GuiState.Hover and not mouseEmCima(r.botao))) then
+                    task.spawn(destravarBotao, r.botao, r.foto)
+                end
+            end
+        end
+    end
+
+    function Utils.destravar(botao)
+        task.spawn(destravarBotao, botao, nil)
+    end
+
     local function trazerParaVista(botao)
         local rolagem = botao:FindFirstAncestorWhichIsA("ScrollingFrame")
         if not rolagem then return end
@@ -554,14 +668,28 @@ return function(App)
 
     local METODOS = {
         { nome = "toque", fn = cliqueMouse },
-        { nome = "seleção", fn = cliqueSelecao },
         { nome = "conexões", fn = cliqueConexoes },
+        { nome = "seleção", fn = cliqueSelecao },
         { nome = "firesignal", fn = cliqueFiresignal },
     }
 
     local toqueIgnorado = 0
 
+    local clicarSemDestravar
     function Utils.clicar(botao, raiz, confirmar, espera, maxDisparos)
+        if not botao or not botao.Parent then return false, nil, 0 end
+        local foto = fotoGeometria(botao)
+        local ok, nome, disparos = clicarSemDestravar(botao, raiz, confirmar, espera, maxDisparos)
+        if (disparos or 0) > 0 then
+            table.insert(recentes, { botao = botao, foto = foto, t = os.clock() })
+            if #recentes > 30 then table.remove(recentes, 1) end
+            task.delay(0.6, destravarBotao, botao, foto)
+            task.delay(2, destravarBotao, botao, foto)
+        end
+        return ok, nome, disparos
+    end
+
+    function clicarSemDestravar(botao, raiz, confirmar, espera, maxDisparos)
         raiz = raiz or botao:FindFirstAncestorWhichIsA("LayerCollector") or botao
         if not botao.Parent then return false, nil, 0 end
         if not Utils.naTela(botao) then
