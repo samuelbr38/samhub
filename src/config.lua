@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "7.4"
+Config.VERSAO = "7.5"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -43,8 +43,9 @@ Config.SAMHUB = {
     CAIXA_OBJETO            = nil,
     MAX_CANDIDATOS_CAIXA    = 3,
 
-    TEXTOS_AVISO_TRADE = { "be careful when trading", "you may get scammed", "only use the trade menu" },
-    TEXTO_OKAY         = { "Okay", "OK", "Ok", "Got it", "Entendi" },
+    TEXTOS_AVISO_TRADE = { "be careful when trading", "you may get scammed", "only use the trade menu",
+                           "trade seems unbalanced", "seems unbalanced", "real world trading" },
+    TEXTO_OKAY         = { "Okay", "OK", "Ok", "Got it", "Entendi", "Next", "Próximo", "Continue", "Continuar" },
 
     TEXTO_CASH_OUT     = { "Cash Out", "Cash out", "Sacar" },
     TEXTOS_CHEQUE      = { "do not show again", "bank of adopt me", "pay to the order", "playing adopt me" },

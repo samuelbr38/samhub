@@ -478,7 +478,12 @@ return function(App)
             if not botaoAceitar then
                 return Utils.setStatus("Não achei o botão Accept (veja a aba Diagnóstico)", "erro")
             end
-            local aceitou, metodo = Utils.clicar(botaoAceitar, janela)
+            local antesAceitar = Utils.assinatura(janela)
+            local aceitou, metodo = Utils.clicar(botaoAceitar, janela, function()
+                return not botaoAceitar.Parent or not Utils.naTela(botaoAceitar)
+                    or Utils.assinatura(janela) ~= antesAceitar or etapaConfirmar(janela)
+                    or (Trade.avisoNaTela ~= nil and Trade.avisoNaTela() ~= nil)
+            end)
             if not aceitou then
                 E.pausado = true
                 avisarEstado()
@@ -491,6 +496,7 @@ return function(App)
         local inicio = os.clock()
         while rodando and not confirmou and os.clock() - inicio < S.TIMEOUT_CONFIRMAR + 30 do
             task.wait(0.4)
+            if Trade.fecharAvisoDeSeguranca then Trade.fecharAvisoDeSeguranca() end
             if janelaTrade() ~= janela then break end
             if jaConfirmado(janela) then
                 confirmou = true
@@ -526,6 +532,7 @@ return function(App)
         inicio = os.clock()
         while rodando and os.clock() - inicio < S.TIMEOUT_RESULTADO do
             task.wait(0.4)
+            if Trade.fecharAvisoDeSeguranca then Trade.fecharAvisoDeSeguranca() end
             nice, quadro, mensagem = sucessoNaTela()
             if nice then break end
             if janelaTrade() ~= janela then
@@ -585,7 +592,7 @@ return function(App)
         local botao, quadro = avisoDeSeguranca()
         if not botao then return false end
         Utils.trabalhando()
-        Utils.setStatus("Aviso do trade: apertando Okay...", "espera")
+        Utils.setStatus("Aviso do trade: apertando " .. Utils.limpar(Utils.textoDe(botao)) .. "...", "espera")
         Utils.ignorarTextoAoRedor = botao
         local ok = Utils.clicar(botao, quadro)
         if Utils.ignorarTextoAoRedor == botao then Utils.ignorarTextoAoRedor = nil end
@@ -593,6 +600,7 @@ return function(App)
         return ok
     end
     Trade.fecharAvisoDeSeguranca = fecharAvisoDeSeguranca
+    Trade.avisoNaTela = avisoDeSeguranca
 
     function Trade.iniciar()
         if rodando then return end
