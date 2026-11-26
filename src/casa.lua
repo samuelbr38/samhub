@@ -1150,7 +1150,16 @@ return function(App)
                 precisaTrocar = marcadaAoAbrir ~= casa
             end
 
-            local apertou, _, disparos = Utils.clicar(mudar, painel, trocou, 2.5, precisaTrocar and 4 or 2)
+            if casaAtual and not precisaTrocar and marcadaAoAbrir == casa and bateImpressao(alvo) ~= false then
+                if conexaoModelo then conexaoModelo:Disconnect() end
+                fecharPainel(painel)
+                placaGuardada = nil
+                goFalhouPara = nil
+                Utils.setStatus("Você já está na '" .. casa.nome .. "'. Indo pôr à venda...", "espera")
+                return "mudou", false
+            end
+
+            local apertou, _, disparos = Utils.clicar(mudar, painel, trocou, 2.5, 2)
             if not apertou then esperar(trocou, 1.5) end
             if conexaoModelo then conexaoModelo:Disconnect() end
             task.wait(0.2)

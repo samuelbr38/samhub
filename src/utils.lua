@@ -367,10 +367,9 @@ return function(App)
         return nil
     end
 
-    local cliqueAtual = 0
-    local function afastarMouse(meu)
+    local function pontoLivre()
         local camera = workspace.CurrentCamera
-        if not VIM or not camera or meu ~= cliqueAtual then return end
+        if not camera then return nil end
         local v = camera.ViewportSize
         for _, f in ipairs({ Vector2.new(0.5, 0.35), Vector2.new(0.25, 0.5), Vector2.new(0.75, 0.5), Vector2.new(0.5, 0.65) }) do
             local p = Vector2.new(v.X * f.X, v.Y * f.Y)
@@ -378,21 +377,39 @@ return function(App)
             for _, o in ipairs(objetosNoPonto(p)) do
                 if o:IsA("GuiButton") then livre = false break end
             end
-            if livre then
-                local tela = paraTela(p)
-                pcall(function() VIM:SendMouseMoveEvent(tela.X, tela.Y, game) end)
-                return
-            end
+            if livre then return paraTela(p) end
         end
+        return nil
+    end
+
+    local cliqueAtual = 0
+    local function afastarMouse(meu)
+        if not VIM or meu ~= cliqueAtual then return end
+        local tela = pontoLivre()
+        if tela then pcall(function() VIM:SendMouseMoveEvent(tela.X, tela.Y, game) end) end
+    end
+
+    local tocando = false
+    local function soltarDeVerdade()
+        if not VIM or tocando then return end
+        local tela = pontoLivre()
+        if not tela then return end
+        pcall(function()
+            VIM:SendMouseMoveEvent(tela.X, tela.Y, game)
+            task.wait(0.03)
+            VIM:SendMouseButtonEvent(tela.X, tela.Y, 0, false, game, 0)
+        end)
     end
 
     local function clicarPonto(pGui, alvo)
         if not VIM then return false end
         cliqueAtual += 1
         local meu = cliqueAtual
+        tocando = true
         local restaurar = Utils.esconderMenuSeCobrir and Utils.esconderMenuSeCobrir(pGui)
         if restaurar then task.wait(0.05) end
         local function fim(resultado)
+            tocando = false
             if restaurar then task.delay(0.15, restaurar) end
             return resultado
         end
@@ -459,26 +476,24 @@ return function(App)
         local baixo, cima = conexoesDe(botao.MouseButton1Down), conexoesDe(botao.MouseButton1Up)
         if #baixo + #cima + #ativado + #clique == 0 then return false end
         Utils.ultimoClique = os.clock()
-        if #ativado > 0 then
-            dispararTodas(ativado)
-            task.wait(0.4)
-            if deu() then return true end
-        end
-        if #clique > 0 then
+        if #ativado + #clique > 0 then
+            if #ativado > 0 then
+                dispararTodas(ativado)
+                task.wait(0.4)
+                if deu() or #clique == 0 then return true end
+            end
             dispararTodas(clique)
-            task.wait(0.4)
-            if deu() then return true end
+            return true
         end
-        if #baixo + #cima == 0 then return true end
         local c = centroDe(botao)
         dispararTodas(baixo, c.X, c.Y)
         task.wait(0.08)
         dispararTodas(cima, c.X, c.Y)
         task.wait(0.05)
         dispararTodas(conexoesDe(botao.MouseLeave), c.X, c.Y)
+        task.delay(0.1, soltarDeVerdade)
         return true
     end
-
     local function cliqueFiresignal(botao, deu)
         if not Utils.recursos.firesignal or Utils.recursos.getconnections or not botao:IsA("GuiButton") then return false end
         Utils.ultimoClique = os.clock()
@@ -486,14 +501,6 @@ return function(App)
         task.wait(0.4)
         if deu() then return true end
         pcall(firesignal, botao.MouseButton1Click)
-        task.wait(0.4)
-        if deu() then return true end
-        local c = centroDe(botao)
-        pcall(firesignal, botao.MouseButton1Down, c.X, c.Y)
-        task.wait(0.08)
-        pcall(firesignal, botao.MouseButton1Up, c.X, c.Y)
-        task.wait(0.05)
-        pcall(firesignal, botao.MouseLeave, c.X, c.Y)
         return true
     end
 
@@ -612,17 +619,19 @@ return function(App)
             end
         end
         task.wait(0.2)
+        local restaurou = false
         for o, props in pairs(foto) do
             local v1 = primeiro[o]
             if v1 and o.Parent then
                 for k, antes in pairs(props) do
                     local ok, agora = pcall(function() return o[k] end)
                     if ok and agora ~= antes and agora == v1[k] and soApertado(agora, antes, k) then
-                        pcall(function() o[k] = antes end)
+                        if pcall(function() o[k] = antes end) then restaurou = true end
                     end
                 end
             end
         end
+        if restaurou and os.clock() - (Utils.ultimoClique or 0) > 0.4 then soltarDeVerdade() end
     end
 
     local recentes = {}
