@@ -193,6 +193,28 @@ return function(App)
         return string.format("%dx%d", math.max(a, b), math.min(a, b))
     end
 
+    local impressoes = {}
+    local function chaveImpressao(alvo)
+        return Utils.normalizar(alvo.nomeOriginal or alvo.nome) .. "|" .. Utils.normalizar(alvo.tipo or "")
+    end
+    local function impressaoAgora()
+        local placa = Casa.acharPlaca()
+        if not placa then return nil end
+        local modelo = modeloDaCasa(placa)
+        return (modelo and modelo.Name or "?") .. ":" .. chaveDaCasa(placa)
+    end
+    local function lembrarImpressao(alvo)
+        local i = impressaoAgora()
+        if i and alvo then impressoes[chaveImpressao(alvo)] = i end
+    end
+    local function bateImpressao(alvo)
+        local guardada = alvo and impressoes[chaveImpressao(alvo)]
+        if not guardada then return nil end
+        local agora = impressaoAgora()
+        if not agora then return nil end
+        return agora == guardada
+    end
+
     local function assinaturaDe(obj)
         local pai = obj.Parent
         local avo = pai and pai.Parent
@@ -1119,6 +1141,8 @@ return function(App)
                 return resposta
             end
 
+            if casaAtual and bateImpressao(casaAtual) == false then casaAtual = nil end
+
             local precisaTrocar
             if casaAtual then
                 precisaTrocar = not mesmaCasa(casaAtual, alvo)
@@ -1126,7 +1150,7 @@ return function(App)
                 precisaTrocar = marcadaAoAbrir ~= casa
             end
 
-            local apertou = Utils.clicar(mudar, painel, trocou, 2.5, precisaTrocar and 4 or 2)
+            local apertou, _, disparos = Utils.clicar(mudar, painel, trocou, 2.5, precisaTrocar and 4 or 2)
             if not apertou then esperar(trocou, 1.5) end
             if conexaoModelo then conexaoModelo:Disconnect() end
             task.wait(0.2)
@@ -1144,15 +1168,36 @@ return function(App)
 
             fecharPainel(painel)
             placaGuardada = nil
+            local jaEstaNela, bate = false, nil
+            if not confirmado and precisaTrocar then
+                bate = bateImpressao(alvo)
+                jaEstaNela = (disparos or 0) > 0 and bate ~= false and S.CONFERIR_VENDA
+                if bate == false then
+                    Utils.log("Go! não mudou nada e a casa em que estou NÃO é a '" .. casa.nome .. "' (modelo/tamanho diferentes)", "aviso")
+                end
+            end
+
             if confirmado then
                 casaAtual, goFalhouPara = { nomeOriginal = alvo.nomeOriginal or alvo.nome, tipo = lido or alvo.tipo }, nil
                 Utils.setStatus("Casa trocada para '" .. casa.nome .. "'. Indo pôr à venda...", "espera")
+            elseif jaEstaNela then
+                goFalhouPara = nil
+                Utils.setStatus("O Go! não mudou nada: você já deve estar na '" .. casa.nome .. "'. Vou pôr à venda e conferir...", "espera")
             elseif precisaTrocar and goFalhouPara ~= alvo.nome then
                 goFalhouPara = alvo.nome
-                Utils.setStatus("Apertei o Go! da '" .. casa.nome .. "', mas a casa não trocou. Parei para não pôr outra casa à venda. "
-                    .. "Se o Go! estiver travado, saia e entre no jogo.", "erro")
+                if bate == false then
+                    Utils.setStatus("Apertei o Go! da '" .. casa.nome .. "', mas o jogo não trocou e você está em OUTRA casa. "
+                        .. "Parei para não pôr a casa errada à venda. Tente de novo (ou saia e entre no jogo).", "erro")
+                elseif not S.CONFERIR_VENDA then
+                    Utils.setStatus("Apertei o Go! da '" .. casa.nome .. "', mas a casa não trocou. Parei para não pôr outra casa à venda. "
+                        .. "Ligue 'Conferir após listar' nos Ajustes para eu seguir quando você já estiver nela.", "erro")
+                else
+                    Utils.setStatus("Não consegui apertar o Go! da '" .. casa.nome .. "'. Parei para não pôr outra casa "
+                        .. "à venda. Tente de novo (ou saia e entre no jogo).", "erro")
+                end
                 return false
             else
+                if bate == false then impressoes[chaveImpressao(alvo)] = nil end
                 goFalhouPara = nil
                 Utils.setStatus("'" .. casa.nome .. "' já parece ser a casa atual. Indo pôr à venda...", "espera")
             end
@@ -1190,6 +1235,7 @@ return function(App)
         end
 
         if not listarCasaAtual(S.ESPERA_SAIR_CASA) then return false end
+        if goConfirmado then lembrarImpressao(casaAtual) end
 
         if not S.CONFERIR_VENDA then return true end
         if goConfirmado then
@@ -1200,6 +1246,7 @@ return function(App)
         local aVenda = verificarCasa(alvo)
         if aVenda == true then
             casaAtual = { nomeOriginal = alvo.nomeOriginal or alvo.nome, tipo = alvo.tipo or tipoAtual }
+            lembrarImpressao(casaAtual)
             Utils.setStatus("'" .. nomeAlvo .. "' à venda ✅", "ok")
             return true
         end
