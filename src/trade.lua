@@ -292,6 +292,10 @@ return function(App)
     local function aceitarPedido()
         local botao, quadro, comprador = acharPedido()
         if not botao then return false end
+        if App.Casa and App.Casa.ocupado and App.Casa.ocupado() then
+            Utils.setStatus("Pedido de @" .. comprador.Name .. ": termino de pôr a casa à venda e já aceito...", "espera")
+            return true
+        end
         Utils.trabalhando()
         Utils.esperar()
         local ok, metodo = Utils.clicar(botao, quadro)
@@ -398,6 +402,24 @@ return function(App)
         return Utils.acharBotao(janela, S.TEXTO_CONFIRMAR) ~= nil or jaConfirmado(janela)
     end
 
+    local function meuAceite(janela)
+        local oferta = janela and janela:FindFirstChild("MyOffer", true)
+        local visto = oferta and oferta:FindFirstChild("Accepted")
+        if not visto or not visto:IsA("GuiObject") then return nil end
+        local ok, transparencia = pcall(function() return visto.ImageTransparency end)
+        if not ok then return nil end
+        return visto.Visible and transparencia < 0.9
+    end
+
+    local function desativado(botao)
+        local sombra = botao and botao:FindFirstChild("Shadow")
+        return sombra ~= nil and sombra:IsA("GuiObject") and not sombra.Visible
+    end
+
+    local function aindaAtivo(jogador)
+        return E.userIdAlvo ~= nil and jogador ~= nil and jogador.UserId == E.userIdAlvo and not E.pausado
+    end
+
     local function sucessoNaTela()
         for _, d in ipairs(PlayerGui:GetDescendants()) do
             if d:IsA("TextLabel") and Utils.naTela(d) then
@@ -482,18 +504,30 @@ return function(App)
             if not botaoAceitar then
                 return Utils.setStatus("Não achei o botão Accept (veja a aba Diagnóstico)", "erro")
             end
-            local antesAceitar = Utils.assinatura(janela)
-            local aceitou, metodo = Utils.clicar(botaoAceitar, janela, function()
-                return not botaoAceitar.Parent or not Utils.naTela(botaoAceitar)
-                    or Utils.assinatura(janela) ~= antesAceitar or etapaConfirmar(janela)
-                    or (Trade.avisoNaTela ~= nil and Trade.avisoNaTela() ~= nil)
-            end)
-            if not aceitou then
-                E.pausado = true
-                avisarEstado()
-                return Utils.setStatus("O clique no Accept não funcionou com nenhum método. Pausado.", "erro")
+            local textoAceitar = Utils.limpar(Utils.textoDe(botaoAceitar) or "")
+            if meuAceite(janela) == true then
+                Utils.setStatus("Já aceitei. Esperando @" .. jogador.Name .. " aceitar...", "espera")
+            elseif string.find(textoAceitar, "%d") then
+                return Utils.setStatus("Esperando a contagem do Accept terminar...", "espera")
+            elseif not aindaAtivo(jogador) then
+                return Utils.setStatus("A entrega foi desativada: não aceitei o trade de @" .. jogador.Name, "aviso")
+            else
+                local aceitou, metodo = Utils.clicar(botaoAceitar, janela, function()
+                    return meuAceite(janela) == true or etapaConfirmar(janela)
+                        or not botaoAceitar.Parent or not Utils.naTela(botaoAceitar)
+                        or (desativado(botaoAceitar) and not string.find(Utils.limpar(Utils.textoDe(botaoAceitar) or ""), "%d"))
+                        or (Trade.avisoNaTela ~= nil and Trade.avisoNaTela() ~= nil)
+                end, 2.5, 2)
+                if not aceitou then
+                    if string.find(Utils.limpar(Utils.textoDe(botaoAceitar) or ""), "%d") then
+                        return Utils.setStatus("A oferta mudou na hora do Accept. Confiro de novo...", "espera")
+                    end
+                    E.pausado = true
+                    avisarEstado()
+                    return Utils.setStatus("O clique no Accept não funcionou com nenhum método. Pausado.", "erro")
+                end
+                Utils.setStatus("Accept (" .. tostring(metodo) .. "). Esperando a tela de confirmação...", "espera")
             end
-            Utils.setStatus("Accept (" .. tostring(metodo) .. "). Esperando a tela de confirmação...", "espera")
         end
 
         local confirmou, vistoEm = jaConfirmado(janela), nil
@@ -508,12 +542,23 @@ return function(App)
                 break
             end
             local botao = Utils.acharBotao(janela, S.TEXTO_CONFIRMAR)
+            if not botao and os.clock() - inicio > 1.5 then
+                local ac = Utils.acharBotao(janela, S.TEXTO_ACEITAR, S.NOMES_ACEITAR)
+                if ac and Utils.naTela(ac) then
+                    local t = Utils.limpar(Utils.textoDe(ac) or "")
+                    if string.find(t, "%d") or (meuAceite(janela) == false and not desativado(ac)) then
+                        return Utils.setStatus("A oferta mudou e o jogo desfez o Accept. Confiro de novo...", "espera")
+                    end
+                end
+            end
             if botao then
                 vistoEm = vistoEm or os.clock()
                 local falta = S.ESPERA_CONFIRMAR - (os.clock() - vistoEm)
                 local texto = Utils.limpar(Utils.textoDe(botao))
                 if falta > 0 or string.find(texto, "%d") then
                     Utils.setStatus(string.format("Tela de confirmação: aperto o Confirm em %.0fs...", math.max(falta, 1)), "espera")
+                elseif not aindaAtivo(jogador) then
+                    return Utils.setStatus("A entrega foi desativada: não confirmei o trade de @" .. jogador.Name, "aviso")
                 elseif tentativasConfirm >= 3 then
                     Utils.setStatus("Apertei o Confirm e ele não mudou. Aperte o Confirm você (eu sigo sozinho).", "aviso")
                     task.wait(1)

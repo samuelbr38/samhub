@@ -8,6 +8,7 @@ return function(App)
 
     local Casa = {}
     local ocupado = false
+    function Casa.ocupado() return ocupado end
 
     local TECLAS_NUMERO = { "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine" }
     local PALAVRAS_PORTA = { "door", "porta", "entrance", "entrada", "exit" }
@@ -191,6 +192,19 @@ return function(App)
         local function arredondar(v) return math.floor(v / 6 + 0.5) * 6 end
         local a, b = arredondar(tamanho.X), arredondar(tamanho.Z)
         return string.format("%dx%d", math.max(a, b), math.min(a, b))
+    end
+
+    local function baseTipo(t)
+        t = string.gsub(string.lower(tostring(t or "")), "[^%w]", "")
+        t = string.gsub(t, "home$", "")
+        t = string.gsub(t, "house$", "")
+        return t
+    end
+    local function pareceMesmoTipo(nomeModelo, tipo)
+        if not nomeModelo or not tipo then return nil end
+        local a, b = baseTipo(nomeModelo), baseTipo(tipo)
+        if a == "" or b == "" then return nil end
+        return a == b
     end
 
     local impressoes = {}
@@ -565,6 +579,13 @@ return function(App)
         local _, raiz = personagem()
         if not raiz then return nil, "Personagem não carregou" end
         local placa = Casa.acharPlaca()
+        if not placa then
+            local ate = os.clock() + 8
+            while not placa and os.clock() < ate do
+                task.wait(0.4)
+                placa = Casa.acharPlaca()
+            end
+        end
         placaGuardada, placaHora = placa, os.clock()
         if not placa then return nil, "Não achei a sua casa (a placa com o seu nome)" end
 
@@ -670,9 +691,27 @@ return function(App)
         end
 
         Utils.setStatus((type(info) == "string" and info) or "Toque na sua caixa de correio: eu continuo sozinho", "aviso")
-        local abriu = esperar(menuAberto, espera or S.ESPERA_CAIXA_CORREIO) ~= nil
-        if abriu then aprenderSeAberto() end
-        return abriu
+        local limite = os.clock() + (espera or S.ESPERA_CAIXA_CORREIO)
+        local proxima = os.clock() + 4
+        while os.clock() < limite do
+            if menuAberto() then
+                aprenderSeAberto()
+                return true
+            end
+            if os.clock() >= proxima then
+                local e2, _, confiavel2 = Casa.irAteCaixa()
+                if e2 or confiavel2 then
+                    Utils.apertarTecla(S.TECLA_INTERAGIR)
+                    if esperar(menuAberto, 2) then
+                        aprenderSeAberto()
+                        return true
+                    end
+                end
+                proxima = os.clock() + 4
+            end
+            task.wait(0.25)
+        end
+        return false
     end
 
     local function apertarItem(item)
@@ -1160,8 +1199,10 @@ return function(App)
                 return "mudou", false
             end
 
-            local apertou, _, disparos = Utils.clicar(mudar, painel, trocou, 2.5, 2)
-            if not apertou then esperar(trocou, 1.5) end
+            local tipoDiferente = pareceMesmoTipo(modeloAntes and modeloAntes.Name, lido or alvo.tipo) == false
+
+            local apertou, _, disparos = Utils.clicar(mudar, painel, trocou, tipoDiferente and 6 or 3, 2)
+            if not apertou then esperar(trocou, tipoDiferente and 8 or 3) end
             if conexaoModelo then conexaoModelo:Disconnect() end
             task.wait(0.2)
             if Utils.cancelarDialogoPerigoso() then
@@ -1254,6 +1295,15 @@ return function(App)
         end
         task.wait(0.5)
         local aVenda = verificarCasa(alvo)
+        if aVenda == nil then
+            task.wait(2)
+            aVenda = verificarCasa(alvo)
+        end
+        if aVenda == nil then
+            Utils.setStatus("Listei a '" .. nomeAlvo .. "', mas não consegui abrir a lista para conferir se é ela que está à venda. "
+                .. "Confira no jogo e aperte ATIVAR de novo.", "erro")
+            return false
+        end
         if aVenda == true then
             casaAtual = { nomeOriginal = alvo.nomeOriginal or alvo.nome, tipo = alvo.tipo or tipoAtual }
             lembrarImpressao(casaAtual)
