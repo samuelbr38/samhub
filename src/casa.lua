@@ -165,7 +165,13 @@ return function(App)
 
     function Casa.esquecerCasaAtual()
         casaAtual = nil
+        Casa.ultimoTradeEm = os.clock()
     end
+
+    Casa.listaTravada = false
+    local TEXTO_LISTA_TRAVADA = "O jogo travou a lista MY HOMES (o botão parou de funcionar, até na mão). "
+        .. "Saia e entre no jogo de novo e aperte ATIVAR."
+    local function semClique(b) return b ~= nil and Utils.temClique(b) == false end
 
     local function modeloDaCasa(placa)
         if not placa or not placa.peca then return nil end
@@ -886,6 +892,11 @@ return function(App)
                 Utils.aviso("não achei o X do painel " .. painel:GetFullName())
                 break
             end
+            if semClique(x) then
+                Casa.listaTravada = true
+                Utils.log("o X da lista não tem mais função de clique (o jogo travou a lista)", "aviso")
+                break
+            end
             local foto = fotoPainel(painel)
             local ok = Utils.clicar(x, painel, function()
                 return painelFechado(painel, titulo) or fotoPainel(painel) ~= foto
@@ -955,14 +966,34 @@ return function(App)
         return lista
     end
 
+    local function nomeNoPainel(painel)
+        for _, d in ipairs(painel:GetDescendants()) do
+            if d:IsA("TextBox") and Utils.naTela(d) and Utils.limpar(d.Text) ~= "" then return Utils.limpar(d.Text) end
+        end
+        return nil
+    end
+    local function mostrando(painel, casa)
+        local nome = nomeNoPainel(painel)
+        if not nome then return nil end
+        return Utils.normalizar(nome) == Utils.normalizar(casa.nome)
+    end
+
     local function escolherNoPainel(painel, casas, casa)
-        if selecionada(casas) == casa then return end
-        local antes = Utils.assinatura(painel)
-        Utils.clicar(casa.cartao, painel, function()
-            return selecionada(casas) == casa or Utils.assinatura(painel) ~= antes
-        end, 1.5, 2)
-        esperar(function() return selecionada(casas) == casa or Utils.assinatura(painel) ~= antes end, 1)
-        task.wait(0.2)
+        if selecionada(casas) == casa and mostrando(painel, casa) ~= false then return true end
+        for _ = 1, 2 do
+            local antes = Utils.assinatura(painel)
+            local function foi()
+                local m = mostrando(painel, casa)
+                if m ~= nil then return m end
+                return selecionada(casas) == casa or Utils.assinatura(painel) ~= antes
+            end
+            Utils.clicar(casa.cartao, painel, foi, 1.5, 2)
+            esperar(foi, 1.5)
+            task.wait(0.2)
+            if mostrando(painel, casa) ~= false then return true end
+        end
+        Utils.log("toquei na '" .. casa.nome .. "' mas o painel continua mostrando '" .. tostring(nomeNoPainel(painel)) .. "'", "aviso")
+        return false
     end
 
     local function casaMarcada()
@@ -980,7 +1011,10 @@ return function(App)
         end
         local aVenda = false
         for _, casa in ipairs(candidatas) do
-            escolherNoPainel(painel, casas, casa)
+            if not escolherNoPainel(painel, casas, casa) then
+                fecharPainel(painel)
+                return nil, casas
+            end
             if vendaNaTela(painel) then
                 aVenda = true
                 break
@@ -1114,9 +1148,34 @@ return function(App)
         return (raiz.Position - placa.posicao).Magnitude <= S.DISTANCIA_MAX_ANDAR
     end
 
+    local function esperarCasaParada(maximo)
+        Utils.setStatus("Esperando o jogo terminar de te mudar de casa...", "espera")
+        local ate = os.clock() + maximo
+        local ultimo, desde = false, os.clock()
+        while os.clock() < ate do
+            local placa = Casa.acharPlaca()
+            local modelo = placa and modeloDaCasa(placa) or nil
+            if modelo ~= ultimo then ultimo, desde = modelo, os.clock() end
+            if modelo and os.clock() - desde >= 2.5 then return true end
+            task.wait(0.3)
+        end
+        return false
+    end
+
     local function prepararCasa(alvo)
+        if os.clock() - (Casa.ultimoTradeEm or -1e9) < 45 then esperarCasaParada(15) end
+        Casa.listaTravada = false
         local painel, lista, casas = abrirListaHomes()
         if not painel then return false end
+        local x = acharX(painel)
+        if semClique(x) then
+            esperar(function() return not semClique(x) end, 3)
+            if semClique(x) then
+                Casa.listaTravada = true
+                Utils.setStatus(TEXTO_LISTA_TRAVADA, "erro")
+                return false
+            end
+        end
 
         Utils.setStatus("Procurando a casa '" .. alvo.nome .. "'" .. (alvo.tipo and (" (" .. alvo.tipo .. ")") or "") .. "...", "espera")
         local marcadaAoAbrir = selecionada(casas)
@@ -1130,7 +1189,12 @@ return function(App)
             return false
         end
         Casa.ultimaEntrega = { alvo = alvo, antes = #candidatasDe(casas, alvo) }
-        escolherNoPainel(painel, casas, casa)
+        if not escolherNoPainel(painel, casas, casa) then
+            fecharPainel(painel)
+            Utils.setStatus("Toquei na '" .. casa.nome .. "' na lista, mas o painel continuou mostrando outra casa. "
+                .. TEXTO_LISTA_TRAVADA, "erro")
+            return false
+        end
         tipoAtual = lido or alvo.tipo or tipoAtual
 
         if vendaNaTela(painel) then
@@ -1150,6 +1214,15 @@ return function(App)
         end
 
         local mudar = Utils.acharBotao(painel, S.TEXTO_MUDAR_PARA_CASA)
+        if mudar and semClique(mudar) then
+            esperar(function() return not semClique(mudar) end, 6)
+            if semClique(mudar) then
+                Casa.listaTravada = true
+                fecharPainel(painel)
+                Utils.setStatus("O Go! da lista não está funcionando. " .. TEXTO_LISTA_TRAVADA, "erro")
+                return false
+            end
+        end
         if mudar then
             Utils.setStatus("Indo para a casa '" .. casa.nome .. "' (Go!)...", "espera")
             local _, raiz = personagem()
@@ -1190,7 +1263,10 @@ return function(App)
                 precisaTrocar = marcadaAoAbrir ~= casa
             end
 
-            if casaAtual and not precisaTrocar and marcadaAoAbrir == casa and bateImpressao(alvo) ~= false then
+            local mesmoTipoAgora = pareceMesmoTipo(modeloAntes and modeloAntes.Name, lido or alvo.tipo)
+            local certezaQueEsta = casaAtual and not precisaTrocar
+            local pareceQueEsta = not casaAtual and mesmoTipoAgora == true
+            if (certezaQueEsta or pareceQueEsta) and marcadaAoAbrir == casa and bateImpressao(alvo) ~= false then
                 if conexaoModelo then conexaoModelo:Disconnect() end
                 fecharPainel(painel)
                 placaGuardada = nil
@@ -1217,7 +1293,10 @@ return function(App)
                 return false
             end
 
-            fecharPainel(painel)
+            if not fecharPainel(painel) and Casa.listaTravada then
+                Utils.setStatus(TEXTO_LISTA_TRAVADA, "erro")
+                return false
+            end
             placaGuardada = nil
             local jaEstaNela, bate = false, nil
             if not confirmado and precisaTrocar then
@@ -1286,13 +1365,9 @@ return function(App)
         end
 
         if not listarCasaAtual(S.ESPERA_SAIR_CASA) then return false end
-        if goConfirmado then lembrarImpressao(casaAtual) end
+        if goConfirmado and not S.CONFERIR_VENDA then lembrarImpressao(casaAtual) end
 
         if not S.CONFERIR_VENDA then return true end
-        if goConfirmado then
-            Utils.setStatus("'" .. nomeAlvo .. "' à venda ✅", "ok")
-            return true
-        end
         task.wait(0.5)
         local aVenda = verificarCasa(alvo)
         if aVenda == nil then
@@ -1300,8 +1375,13 @@ return function(App)
             aVenda = verificarCasa(alvo)
         end
         if aVenda == nil then
-            Utils.setStatus("Listei a '" .. nomeAlvo .. "', mas não consegui abrir a lista para conferir se é ela que está à venda. "
-                .. "Confira no jogo e aperte ATIVAR de novo.", "erro")
+            if Casa.listaTravada then
+                Utils.setStatus("Listei a casa atual, mas não consegui conferir se é a '" .. nomeAlvo .. "'. " .. TEXTO_LISTA_TRAVADA
+                    .. " Antes de entregar, confira qual casa está à venda.", "erro")
+            else
+                Utils.setStatus("Listei a casa atual, mas não consegui conferir se é a '" .. nomeAlvo .. "'. "
+                    .. "Confira no jogo qual casa está à venda e aperte ATIVAR de novo.", "erro")
+            end
             return false
         end
         if aVenda == true then

@@ -459,6 +459,13 @@ return function(App)
         return (ok and type(lista) == "table") and lista or {}
     end
 
+    function Utils.temClique(botao)
+        if not Utils.recursos.getconnections or not botao or not botao:IsA("GuiButton") then return nil end
+        local n = #conexoesDe(botao.Activated) + #conexoesDe(botao.MouseButton1Click)
+            + #conexoesDe(botao.MouseButton1Down) + #conexoesDe(botao.MouseButton1Up)
+        return n > 0
+    end
+
     local function dispararTodas(lista, ...)
         local args = table.pack(...)
         for _, c in ipairs(lista) do
