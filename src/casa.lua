@@ -866,6 +866,7 @@ return function(App)
 
     local function abrirListaHomes(espera)
         deixeiHomesAberta = false
+        if App.Popups and App.Popups.resolverRecebido then pcall(App.Popups.resolverRecebido) end
         local painel, lista = App.Scanner.acharPainel()
         if not lista then
             if not Casa.abrirMenu(espera) then

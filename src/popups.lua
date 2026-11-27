@@ -14,10 +14,15 @@ return function(App)
 
     local alvosCash = {}
     for _, t in ipairs(S.TEXTO_CASH_OUT) do alvosCash[Utils.normalizar(t)] = true end
+    local alvosDone = {}
+    for _, t in ipairs(S.TEXTO_DONE) do alvosDone[Utils.normalizar(t)] = true end
+    local candidatosDone = setmetatable({}, { __mode = "k" })
 
     local function registrar(d)
-        if (d:IsA("TextLabel") or d:IsA("TextButton")) and alvosCash[Utils.normalizar(d.Text)] then
-            candidatos[d] = true
+        if d:IsA("TextLabel") or d:IsA("TextButton") then
+            local t = Utils.normalizar(d.Text)
+            if alvosCash[t] then candidatos[d] = true end
+            if alvosDone[t] then candidatosDone[d] = true end
         end
     end
 
@@ -252,6 +257,50 @@ return function(App)
         return false
     end
 
+    local falhasRecebido = 0
+    local pausaRecebidoAte = 0
+    local fechandoRecebido = false
+
+    local function acharTelaRecebido()
+        for label in pairs(candidatosDone) do
+            if not label.Parent then
+                candidatosDone[label] = nil
+            elseif alvosDone[Utils.normalizar(label.Text)] and Utils.naTela(label) then
+                local botao = Utils.alvoDoTexto(label)
+                local quadro = botao.Parent
+                for _ = 1, 4 do
+                    if not quadro or quadro:IsA("LayerCollector") then break end
+                    local proximo = Utils.acharBotao(quadro, S.TEXTO_PROXIMO)
+                    if proximo and proximo ~= botao then return botao, quadro end
+                    quadro = quadro.Parent
+                end
+            end
+        end
+        return nil
+    end
+    Popups.acharTelaRecebido = acharTelaRecebido
+
+    function Popups.resolverRecebido()
+        if not S.FECHAR_ITEM_RECEBIDO or fechandoRecebido or os.clock() < pausaRecebidoAte then return false end
+        local done, quadro = acharTelaRecebido()
+        if not done or not Utils.naTela(done) then return false end
+        fechandoRecebido = true
+        local ok = Utils.clicar(done, quadro, nil, 2, 2)
+        fechandoRecebido = false
+        if ok then
+            falhasRecebido = 0
+            Utils.log("item recebido: apertei Done", "info")
+            return true
+        end
+        falhasRecebido += 1
+        if falhasRecebido >= 3 then
+            falhasRecebido = 0
+            pausaRecebidoAte = os.clock() + 30
+            Utils.notificar("Não consegui apertar Done na tela do item recebido. Aperte você (tento de novo em 30s).", "aviso")
+        end
+        return false
+    end
+
     local function naoFicarParado()
         if not S.ANTI_AFK then return end
         pcall(function()
@@ -275,13 +324,17 @@ return function(App)
                 task.wait(1)
                 volta += 1
                 if volta % 3 == 0 then pcall(Utils.destravarRecentes) end
+                if (S.AUTO_CASH_OUT or S.FECHAR_ITEM_RECEBIDO) and os.clock() - ultimaColeta > 10 then
+                    ultimaColeta = os.clock()
+                    coletar()
+                end
                 if S.AUTO_CASH_OUT then
-                    if os.clock() - ultimaColeta > 10 then
-                        ultimaColeta = os.clock()
-                        coletar()
-                    end
                     local ok, err = pcall(Popups.resolverCheque)
                     if not ok then Utils.aviso("cheque: " .. tostring(err)) end
+                end
+                if S.FECHAR_ITEM_RECEBIDO then
+                    local ok, err = pcall(Popups.resolverRecebido)
+                    if not ok then Utils.aviso("item recebido: " .. tostring(err)) end
                 end
                 if S.NEGAR_VER_ITENS then
                     local ok, err = pcall(Popups.resolverVerItens)

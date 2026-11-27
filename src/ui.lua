@@ -677,6 +677,7 @@ return function(App)
         toggle(11, "AUTO_CASH_OUT", "Cash Out automático", "cheque do banco: marca e saca")
         toggle(12, "ANTI_AFK", "Anti-inatividade", "o jogo não te tira depois de 20 min")
         toggle(13, "NEGAR_VER_ITENS", "Negar 'ver seus itens'", "marca 'sempre' e aperta No")
+        toggle(14, "FECHAR_ITEM_RECEBIDO", "Fechar item recebido", "aperta Done na tela do item")
 
         C.cabecalho(cardTempo, 1, nil, "Tempo")
         local function stepper(ordem, chave, texto, minimo, maximo, passo)
@@ -739,6 +740,15 @@ return function(App)
         C.botao({
             Parent = linhaMapa2, Texto = "MAPA TELA", Position = UDim2.new(0.5, 3, 0, 0), Size = UDim2.new(0.5, -3, 1, 0),
             TextSize = 9, OnClick = function() Mapeador.mapear() end,
+        })
+        local linhaBotoes = C.linha(cardExec, 10, 22)
+        C.botao({
+            Parent = linhaBotoes, Texto = "BOTÕES TRAVADOS (COPIAR)", Size = UDim2.new(1, 0, 1, 0), TextSize = 9,
+            OnClick = function()
+                local texto = Utils.diagnosticoBotoes()
+                Utils.log(texto, "info")
+                Utils.setStatus(se(Utils.copiar(texto), "Diagnóstico dos botões copiado: me mande", "Diagnóstico dos botões no Registro"), "info")
+            end,
         })
 
         C.cabecalho(cardJogo, 1, nil, "Jogo")

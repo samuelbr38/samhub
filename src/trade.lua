@@ -419,6 +419,10 @@ return function(App)
 
     local function entregaConcluida(nick, userId)
         if App.Casa and App.Casa.esquecerCasaAtual then App.Casa.esquecerCasaAtual() end
+        if App.Popups and App.Popups.resolverRecebido then
+            task.wait(0.5)
+            pcall(App.Popups.resolverRecebido)
+        end
         local marcada = next(E.casasSelecionadas)
         local detalhe, problema = "casa entregue ✅", nil
         if S.CONFERIR_ENTREGA and App.Casa and App.Casa.conferirEntrega then
@@ -493,6 +497,7 @@ return function(App)
         end
 
         local confirmou, vistoEm = jaConfirmado(janela), nil
+        local tentativasConfirm = 0
         local inicio = os.clock()
         while rodando and not confirmou and os.clock() - inicio < S.TIMEOUT_CONFIRMAR + 30 do
             task.wait(0.4)
@@ -509,11 +514,23 @@ return function(App)
                 local texto = Utils.limpar(Utils.textoDe(botao))
                 if falta > 0 or string.find(texto, "%d") then
                     Utils.setStatus(string.format("Tela de confirmação: aperto o Confirm em %.0fs...", math.max(falta, 1)), "espera")
-                elseif Utils.clicar(botao, janela, function() return jaConfirmado(janela) end, 2) then
-                    confirmou = true
-                else
-                    Utils.setStatus("O Confirm ainda não respondeu. Tento de novo...", "espera")
+                elseif tentativasConfirm >= 3 then
+                    Utils.setStatus("Apertei o Confirm e ele não mudou. Aperte o Confirm você (eu sigo sozinho).", "aviso")
                     task.wait(1)
+                else
+                    tentativasConfirm += 1
+                    local function mudou()
+                        if jaConfirmado(janela) then return true end
+                        if not botao.Parent then return false end
+                        local agora = Utils.limpar(Utils.textoDe(botao) or "")
+                        return agora ~= texto and agora ~= "" and not string.find(agora, "%d")
+                    end
+                    if Utils.clicar(botao, janela, mudou, 2.5, 2) then
+                        confirmou = true
+                    else
+                        Utils.setStatus("O Confirm ainda não respondeu. Tento de novo...", "espera")
+                        task.wait(2)
+                    end
                 end
             end
         end

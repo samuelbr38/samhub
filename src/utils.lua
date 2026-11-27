@@ -433,7 +433,7 @@ return function(App)
         Utils.ultimoClique = os.clock()
         local feito = pcall(function()
             VIM:SendMouseButtonEvent(tela.X, tela.Y, 0, true, game, 0)
-            task.wait(0.08)
+            task.wait(0.1)
             VIM:SendMouseButtonEvent(tela.X, tela.Y, 0, false, game, 0)
         end)
         if alvo then task.delay(0.2, afastarMouse, meu) end
@@ -565,6 +565,29 @@ return function(App)
         return foto
     end
 
+    local PROPS_VISUAIS = { "ImageColor3", "BackgroundColor3", "ImageTransparency", "BackgroundTransparency",
+        "Image", "ImageRectOffset", "TextColor3", "Visible" }
+    local function fotoVisual(botao)
+        local foto, n = {}, 0
+        pcall(function()
+            local lista = botao:GetDescendants()
+            table.insert(lista, 1, botao)
+            for _, o in ipairs(lista) do
+                if n >= 25 then break end
+                if o:IsA("GuiObject") then
+                    local v = {}
+                    for _, k in ipairs(PROPS_VISUAIS) do
+                        local ok, valor = pcall(function() return o[k] end)
+                        if ok then v[k] = valor end
+                    end
+                    foto[o] = v
+                    n += 1
+                end
+            end
+        end)
+        return foto
+    end
+
     local function encolheu(agora, antes)
         if agora == antes then return true end
         if antes == 0 then return false end
@@ -601,6 +624,7 @@ return function(App)
         elseif Utils.recursos.firesignal then
             pcall(firesignal, botao.MouseLeave, 0, 0)
         end
+        if os.clock() - (Utils.ultimoClique or 0) > 0.4 then soltarDeVerdade() end
         pcall(function()
             local estado = botao.GuiState
             if botao.Interactable and (estado == Enum.GuiState.Press or (estado == Enum.GuiState.Hover and not mouseEmCima(botao))) then
@@ -635,6 +659,86 @@ return function(App)
     end
 
     local recentes = {}
+    local destravando = setmetatable({}, { __mode = "k" })
+    local function aindaApertado(foto)
+        for o, props in pairs(foto) do
+            if o.Parent then
+                for k, antes in pairs(props) do
+                    local ok, agora = pcall(function() return o[k] end)
+                    if ok and agora ~= antes and soApertado(agora, antes, k) then return true end
+                end
+            end
+        end
+        return false
+    end
+    local SINAIS = { "Activated", "MouseButton1Click", "MouseButton1Down", "MouseButton1Up", "MouseEnter",
+        "MouseLeave", "InputBegan", "InputEnded", "SelectionGained", "SelectionLost" }
+    local function resumoConexoes(botao)
+        if not Utils.recursos.getconnections then return "(sem getconnections)" end
+        local partes = {}
+        for _, nome in ipairs(SINAIS) do
+            local ok, sinal = pcall(function() return botao[nome] end)
+            local n = ok and #conexoesDe(sinal) or 0
+            if n > 0 then table.insert(partes, nome .. "=" .. n) end
+        end
+        return #partes > 0 and table.concat(partes, " ") or "nenhuma"
+    end
+    local function caminho(o, raiz)
+        if o == raiz then return "(botão)" end
+        local ok, nome = pcall(function() return o:GetFullName() end)
+        local base = ok and nome or o.Name
+        local ok2, nomeRaiz = pcall(function() return raiz:GetFullName() end)
+        if ok2 and string.sub(base, 1, #nomeRaiz) == nomeRaiz then return "." .. string.sub(base, #nomeRaiz + 2) end
+        return base
+    end
+    local function diferencas(foto, raiz, linhas)
+        for o, props in pairs(foto or {}) do
+            if o.Parent then
+                for k, antes in pairs(props) do
+                    local ok, agora = pcall(function() return o[k] end)
+                    if ok and agora ~= antes then
+                        table.insert(linhas, "   " .. caminho(o, raiz) .. "." .. k .. ": " .. tostring(antes) .. " -> " .. tostring(agora))
+                    end
+                end
+            end
+        end
+    end
+    local function textoDiagnostico(r)
+        local b = r.botao
+        local linhas = {}
+        local function add(s) table.insert(linhas, s) end
+        local okNome, nome = pcall(function() return b:GetFullName() end)
+        add("• " .. (okNome and nome or tostring(b)) .. "  [" .. tostring(Utils.textoDe(b) or "") .. "]")
+        add(string.format("   clicado há %.0fs com: %s", os.clock() - r.t, table.concat(r.metodos or {}, ", ")))
+        pcall(function()
+            add("   estado=" .. tostring(b.GuiState) .. " interactable=" .. tostring(b.Interactable)
+                .. " active=" .. tostring(b.Active) .. " autoCor=" .. tostring(b.AutoButtonColor)
+                .. " selecionado=" .. tostring(GuiService.SelectedObject == b) .. " mouseEmCima=" .. tostring(mouseEmCima(b))
+                .. " naTela=" .. tostring(Utils.naTela(b)))
+        end)
+        add("   conexões: " .. resumoConexoes(b))
+        local antes = #linhas
+        diferencas(r.foto, b, linhas)
+        diferencas(r.visual, b, linhas)
+        if #linhas == antes then add("   (nada mudou desde antes do clique)") end
+        return table.concat(linhas, "\n")
+    end
+
+    function Utils.diagnosticoBotoes()
+        local partes = { "SAMHUB v" .. tostring(App.Config.VERSAO) .. " · botões apertados pelo script (mais novo primeiro)" }
+        local n = 0
+        for i = #recentes, 1, -1 do
+            local r = recentes[i]
+            if r.botao.Parent then
+                table.insert(partes, textoDiagnostico(r))
+                n += 1
+                if n >= 6 then break end
+            end
+        end
+        if n == 0 then table.insert(partes, "(nenhum botão apertado nos últimos 90 segundos)") end
+        return table.concat(partes, "\n")
+    end
+
     function Utils.destravarRecentes()
         if os.clock() - (Utils.ultimoClique or 0) < 1.5 then return end
         local agora = os.clock()
@@ -642,10 +746,21 @@ return function(App)
             local r = recentes[i]
             if agora - r.t > 90 or not r.botao.Parent then
                 table.remove(recentes, i)
-            else
+            elseif not destravando[r.botao] then
                 local ok, estado = pcall(function() return r.botao.GuiState end)
-                if ok and (estado == Enum.GuiState.Press or (estado == Enum.GuiState.Hover and not mouseEmCima(r.botao))) then
-                    task.spawn(destravarBotao, r.botao, r.foto)
+                local preso = ok and (estado == Enum.GuiState.Press or (estado == Enum.GuiState.Hover and not mouseEmCima(r.botao)))
+                if preso or aindaApertado(r.foto) then
+                    r.tentativas = (r.tentativas or 0) + 1
+                    if r.tentativas > 3 and not r.avisado then
+                        r.avisado = true
+                        Utils.log("BOTÃO TRAVADO (não consegui soltar):\n" .. textoDiagnostico(r), "aviso")
+                        Utils.notificar("Um botão ficou apertado. Diagnóstico > BOTÕES TRAVADOS > copie e me mande", "aviso")
+                    end
+                    destravando[r.botao] = true
+                    task.spawn(function()
+                        pcall(destravarBotao, r.botao, r.foto)
+                        destravando[r.botao] = nil
+                    end)
                 end
             end
         end
@@ -687,10 +802,13 @@ return function(App)
     local clicarSemDestravar
     function Utils.clicar(botao, raiz, confirmar, espera, maxDisparos)
         if not botao or not botao.Parent then return false, nil, 0 end
-        local foto = fotoGeometria(botao)
-        local ok, nome, disparos = clicarSemDestravar(botao, raiz, confirmar, espera, maxDisparos)
+        local foto, visual = fotoGeometria(botao), fotoVisual(botao)
+        local ok, nome, disparos, metodos = clicarSemDestravar(botao, raiz, confirmar, espera, maxDisparos)
         if (disparos or 0) > 0 then
-            table.insert(recentes, { botao = botao, foto = foto, t = os.clock() })
+            for i = #recentes, 1, -1 do
+                if recentes[i].botao == botao then table.remove(recentes, i) end
+            end
+            table.insert(recentes, { botao = botao, foto = foto, visual = visual, t = os.clock(), metodos = metodos })
             if #recentes > 30 then table.remove(recentes, 1) end
             task.delay(0.6, destravarBotao, botao, foto)
             task.delay(2, destravarBotao, botao, foto)
@@ -698,8 +816,12 @@ return function(App)
         return ok, nome, disparos
     end
 
+    local ultimoAperto = setmetatable({}, { __mode = "k" })
     function clicarSemDestravar(botao, raiz, confirmar, espera, maxDisparos)
         raiz = raiz or botao:FindFirstAncestorWhichIsA("LayerCollector") or botao
+        maxDisparos = math.min(maxDisparos or 2, 2)
+        local desde = os.clock() - (ultimoAperto[botao] or -10)
+        if desde < 1.2 then task.wait(1.2 - desde) end
         if not botao.Parent then return false, nil, 0 end
         if not Utils.naTela(botao) then
             local rolagem = Utils.visivel(botao) and botao:FindFirstAncestorWhichIsA("ScrollingFrame")
@@ -720,6 +842,7 @@ return function(App)
         end
 
         local disparos, ultimo, toqueFalhou = 0, nil, false
+        local metodos = {}
         local function sucesso(nome)
             Utils.metodoClique = nome
             if nome == "toque" then
@@ -727,24 +850,27 @@ return function(App)
             elseif toqueFalhou then
                 toqueIgnorado += 1
             end
-            return true, nome, disparos
+            return true, nome, disparos, metodos
         end
 
         for _, metodo in ipairs(ordem) do
-            if maxDisparos and disparos >= maxDisparos then break end
+            if disparos >= maxDisparos then break end
             if disparos > 0 then
                 if confirmar and confirmar() then return sucesso(ultimo) end
                 if not confirmar and (not botao.Parent or not Utils.naTela(botao)) then return sucesso(ultimo) end
                 if not botao.Parent then break end
             end
+            local pular = metodo.nome == "seleção" and disparos > 0
             local antes = Utils.assinatura(raiz)
             local function deu()
                 if confirmar then return confirmar() and true or false end
                 return not botao.Parent or not Utils.naTela(botao) or Utils.assinatura(raiz) ~= antes
             end
-            if metodo.fn(botao, deu) then
+            if not pular and metodo.fn(botao, deu) then
                 disparos += 1
                 ultimo = metodo.nome
+                ultimoAperto[botao] = os.clock()
+                table.insert(metodos, metodo.nome)
                 local t = 0
                 while t < (espera or 1.5) do
                     if deu() then return sucesso(metodo.nome) end
@@ -755,7 +881,7 @@ return function(App)
                 if metodo.nome == "toque" then toqueFalhou = true end
             end
         end
-        return false, nil, disparos
+        return false, nil, disparos, metodos
     end
 
     function Utils.temPerigo(texto)

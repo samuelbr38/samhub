@@ -1,6 +1,6 @@
 local Config = {}
 
-Config.VERSAO = "7.8"
+Config.VERSAO = "8.1"
 Config.PLACE_ADOPT_ME = 920587237
 
 Config.SAMHUB = {
@@ -57,6 +57,9 @@ Config.SAMHUB = {
     TEXTO_NAO            = { "No", "Não", "Nao" },
     TEXTO_SIM            = { "Yes", "Sim" },
 
+    TEXTO_DONE           = { "Done", "Concluído", "Concluido", "Concluir", "Pronto" },
+    TEXTO_PROXIMO        = { "Next", "Próximo", "Proximo" },
+
     TEXTOS_PEDIDO_TRADE  = { "sent you a trade request", "trade request", "wants to trade" },
     TEXTO_RECUSAR_PEDIDO = { "Decline", "Recusar" },
 
@@ -74,6 +77,7 @@ Config.SAMHUB = {
     AUTO_CASH_OUT     = true,
     ANTI_AFK          = true,
     NEGAR_VER_ITENS   = true,
+    FECHAR_ITEM_RECEBIDO = true,
     SITE_URL           = "https://hnvlcanhywxsgdoromba.supabase.co",
     SITE_CHAVE_PUBLICA = "sb_publishable_zg-cjy13XFwpmc2muNxFOg_vsM8h7sI",
     SITE_LIGADO       = true,
@@ -97,7 +101,7 @@ Config.AJUSTES_SALVOS = {
     "RECUSAR_OUTROS", "ACEITAR_PEDIDO", "VERIFICAR_CASA", "LISTAR_AO_ATIVAR",
     "ANDAR_ATE_CAIXA", "CONFERIR_VENDA", "CAIXAS", "CAIXA_OBJETO", "MINIMIZAR_AUTO", "POPUPS",
     "TEMPO_ESTAVEL", "DELAY_MIN", "DELAY_MAX", "CONFERIR_ENTREGA", "AUTO_CASH_OUT", "ANTI_AFK", "SITE_LIGADO", "SITE_AUTO_FILA",
-    "NEGAR_VER_ITENS",
+    "NEGAR_VER_ITENS", "FECHAR_ITEM_RECEBIDO",
 }
 
 Config.PLACEHOLDERS = {
