@@ -164,7 +164,7 @@ return function(App)
                     pcall(chamar, "samhub_ping", { p_roblox = meuNick() })
                 end
                 local ocupado = (Site.estado.naFila or 0) > 0 or App.Fila.rodando() or App.Trade.estado() ~= "inativo"
-                for _ = 1, (ocupado and 30 or 60) do
+                for _ = 1, (ocupado and 30 or 120) do
                     if minha ~= geracao then return end
                     task.wait(1)
                 end
