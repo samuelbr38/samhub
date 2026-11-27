@@ -403,12 +403,17 @@ return function(App)
     end
 
     local function meuAceite(janela)
-        local oferta = janela and janela:FindFirstChild("MyOffer", true)
-        local visto = oferta and oferta:FindFirstChild("Accepted")
-        if not visto or not visto:IsA("GuiObject") then return nil end
-        local ok, transparencia = pcall(function() return visto.ImageTransparency end)
-        if not ok then return nil end
-        return visto.Visible and transparencia < 0.9
+        if not janela then return nil end
+        for _, d in ipairs(janela:GetDescendants()) do
+            if d.Name == "MyOffer" and d:IsA("GuiObject") and Utils.naTela(d) then
+                local visto = d:FindFirstChild("Accepted")
+                if visto and visto:IsA("GuiObject") then
+                    local ok, transparencia = pcall(function() return visto.ImageTransparency end)
+                    if ok then return visto.Visible and transparencia < 0.9 end
+                end
+            end
+        end
+        return nil
     end
 
     local function desativado(botao)
